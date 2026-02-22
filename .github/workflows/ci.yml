@@ -18,6 +18,9 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Add WASM target
+        run: rustup target add wasm32-unknown-unknown
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -38,5 +41,8 @@ jobs:
       - name: Test
         run: cargo test -p subscription_vault
 
-      - name: Build release
+      - name: Build release (native)
         run: cargo build -p subscription_vault --release
+
+      - name: Build WASM
+        run: cargo build -p subscription_vault --target wasm32-unknown-unknown --release
