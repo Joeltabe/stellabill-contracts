@@ -139,11 +139,7 @@ impl SubscriptionVault {
     /// | `UsageNotEnabled` | `usage_enabled` is `false`. |
     /// | `InvalidAmount` | `usage_amount` is zero or negative. |
     /// | `InsufficientPrepaidBalance` | Prepaid balance cannot cover the debit. |
-    pub fn charge_usage(
-        env: Env,
-        subscription_id: u32,
-        usage_amount: i128,
-    ) -> Result<(), Error> {
+    pub fn charge_usage(env: Env, subscription_id: u32, usage_amount: i128) -> Result<(), Error> {
         charge_core::charge_usage_one(&env, subscription_id, usage_amount)
     }
 
