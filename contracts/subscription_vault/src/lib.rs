@@ -8,6 +8,10 @@ use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, 
 pub enum Error {
     NotFound = 404,
     Unauthorized = 401,
+    /// Charge attempted before `last_payment_timestamp + interval_seconds`.
+    IntervalNotElapsed = 1001,
+    /// Subscription is not Active (e.g. Paused, Cancelled).
+    NotActive = 1002,
     InvalidStatusTransition = 400,
     BelowMinimumTopup = 402,
 }

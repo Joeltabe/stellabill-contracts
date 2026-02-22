@@ -459,6 +459,130 @@ fn test_subscription_struct_status_field() {
     assert_eq!(sub.status, SubscriptionStatus::Active);
 }
 
+// -- Billing interval enforcement tests --------------------------------------
+
+/// Just-before: charge 1 second before the interval elapses.
+/// Must reject with IntervalNotElapsed and leave storage untouched.
+#[test]
+fn test_charge_rejected_before_interval() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, id) = setup(&env, INTERVAL);
+
+    // 1 second too early.
+    env.ledger().set_timestamp(T0 + INTERVAL - 1);
+
+    let res = client.try_charge_subscription(&id);
+    assert_eq!(res, Err(Ok(Error::IntervalNotElapsed)));
+
+    // Storage unchanged — last_payment_timestamp still equals creation time.
+    let sub = client.get_subscription(&id);
+    assert_eq!(sub.last_payment_timestamp, T0);
+}
+
+/// Exact boundary: charge at exactly last_payment_timestamp + interval_seconds.
+/// Must succeed and advance last_payment_timestamp.
+#[test]
+fn test_charge_succeeds_at_exact_interval() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, id) = setup(&env, INTERVAL);
+
+    env.ledger().set_timestamp(T0 + INTERVAL);
+    client.charge_subscription(&id);
+
+    let sub = client.get_subscription(&id);
+    assert_eq!(sub.last_payment_timestamp, T0 + INTERVAL);
+}
+
+/// After interval: charge well past the interval boundary.
+/// Must succeed and set last_payment_timestamp to the current ledger time.
+#[test]
+fn test_charge_succeeds_after_interval() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, id) = setup(&env, INTERVAL);
+
+    let charge_time = T0 + 2 * INTERVAL;
+    env.ledger().set_timestamp(charge_time);
+    client.charge_subscription(&id);
+
+    let sub = client.get_subscription(&id);
+    assert_eq!(sub.last_payment_timestamp, charge_time);
+}
+
+// -- Edge cases: boundary timestamps & repeated calls ------------------------
+//
+// Assumptions about ledger time monotonicity:
+//   Soroban ledger timestamps are set by validators and are expected to be
+//   non-decreasing across ledger closes (~5-6 s on mainnet). The contract
+//   does NOT assume strict monotonicity — it only requires
+//   `now >= last_payment_timestamp + interval_seconds`. If a validator were
+//   to produce a timestamp equal to the previous ledger's (same second), the
+//   charge would simply be rejected as the interval cannot have elapsed in
+//   zero additional seconds. The contract never relies on `now > previous_now`.
+
+/// Same-timestamp retry: a second charge at the identical timestamp that
+/// succeeded must be rejected because 0 seconds < interval_seconds.
+#[test]
+fn test_immediate_retry_at_same_timestamp_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, id) = setup(&env, INTERVAL);
+
+    let t1 = T0 + INTERVAL;
+    env.ledger().set_timestamp(t1);
+    client.charge_subscription(&id);
+
+    // Retry at the same timestamp — must fail, storage stays at t1.
+    let res = client.try_charge_subscription(&id);
+    assert_eq!(res, Err(Ok(Error::IntervalNotElapsed)));
+
+    let sub = client.get_subscription(&id);
+    assert_eq!(sub.last_payment_timestamp, t1);
+}
+
+/// Repeated charges across 6 consecutive intervals.
+/// Verifies the sliding-window reset works correctly over many cycles.
+#[test]
+fn test_repeated_charges_across_many_intervals() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, id) = setup(&env, INTERVAL);
+
+    for i in 1..=6u64 {
+        let charge_time = T0 + i * INTERVAL;
+        env.ledger().set_timestamp(charge_time);
+        client.charge_subscription(&id);
+
+        let sub = client.get_subscription(&id);
+        assert_eq!(sub.last_payment_timestamp, charge_time);
+    }
+
+    // One more attempt without advancing time — must fail.
+    let res = client.try_charge_subscription(&id);
+    assert_eq!(res, Err(Ok(Error::IntervalNotElapsed)));
+}
+
+/// Minimum interval (1 second): charge at creation time must fail,
+/// charge 1 second later must succeed.
+#[test]
+fn test_one_second_interval_boundary() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, id) = setup(&env, 1);
+
+    // At creation time — 0 seconds elapsed, interval is 1 s → too early.
+    env.ledger().set_timestamp(T0);
+    let res = client.try_charge_subscription(&id);
+    assert_eq!(res, Err(Ok(Error::IntervalNotElapsed)));
+
+    // Exactly 1 second later — boundary, should succeed.
+    env.ledger().set_timestamp(T0 + 1);
+    client.charge_subscription(&id);
+
+    let sub = client.get_subscription(&id);
+    assert_eq!(sub.last_payment_timestamp, T0 + 1);
 #[test]
 fn test_init_and_struct() {
     let env = Env::default();
