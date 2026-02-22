@@ -64,11 +64,11 @@ pub enum RecoveryReason {
     /// Funds sent to contract address by mistake (no associated subscription).
     /// This occurs when users accidentally send tokens directly to the contract.
     AccidentalTransfer = 0,
-    
+
     /// Funds from deprecated contract flows or logic errors.
     /// Used when contract upgrades or bugs leave funds in an inaccessible state.
     DeprecatedFlow = 1,
-    
+
     /// Funds from cancelled subscriptions with unreachable addresses.
     /// Subscribers may lose access to their withdrawal keys after cancellation.
     UnreachableSubscriber = 2,
@@ -151,11 +151,17 @@ pub fn validate_status_transition(
                 | SubscriptionStatus::InsufficientBalance
         ),
         SubscriptionStatus::Paused => {
-            matches!(to, SubscriptionStatus::Active | SubscriptionStatus::Cancelled)
+            matches!(
+                to,
+                SubscriptionStatus::Active | SubscriptionStatus::Cancelled
+            )
         }
         SubscriptionStatus::Cancelled => false,
         SubscriptionStatus::InsufficientBalance => {
-            matches!(to, SubscriptionStatus::Active | SubscriptionStatus::Cancelled)
+            matches!(
+                to,
+                SubscriptionStatus::Active | SubscriptionStatus::Cancelled
+            )
         }
     };
 
@@ -183,15 +189,11 @@ pub fn get_allowed_transitions(status: &SubscriptionStatus) -> &'static [Subscri
             SubscriptionStatus::Cancelled,
             SubscriptionStatus::InsufficientBalance,
         ],
-        SubscriptionStatus::Paused => &[
-            SubscriptionStatus::Active,
-            SubscriptionStatus::Cancelled,
-        ],
+        SubscriptionStatus::Paused => &[SubscriptionStatus::Active, SubscriptionStatus::Cancelled],
         SubscriptionStatus::Cancelled => &[],
-        SubscriptionStatus::InsufficientBalance => &[
-            SubscriptionStatus::Active,
-            SubscriptionStatus::Cancelled,
-        ],
+        SubscriptionStatus::InsufficientBalance => {
+            &[SubscriptionStatus::Active, SubscriptionStatus::Cancelled]
+        }
     }
 }
 
@@ -214,7 +216,7 @@ pub struct NextChargeInfo {
     /// For Paused and Cancelled states, this represents when the charge *would* occur if the
     /// subscription were Active, but `is_charge_expected` will be `false`.
     pub next_charge_timestamp: u64,
-    
+
     /// Whether a charge is actually expected based on the subscription status.
     /// - `true` for Active subscriptions (charge will be attempted)
     /// - `true` for InsufficientBalance (charge will be retried after funding)
@@ -256,7 +258,7 @@ pub struct NextChargeInfo {
 /// // Active subscription: charge is expected
 /// let info = compute_next_charge_info(&active_subscription);
 /// assert!(info.is_charge_expected);
-/// assert_eq!(info.next_charge_timestamp, 
+/// assert_eq!(info.next_charge_timestamp,
 ///            active_subscription.last_payment_timestamp + active_subscription.interval_seconds);
 ///
 /// // Paused subscription: charge is not expected
@@ -276,16 +278,17 @@ pub struct NextChargeInfo {
 /// - Analytics and monitoring systems to track billing cycles
 /// - Detecting overdue subscriptions (current_time > next_charge_timestamp)
 pub fn compute_next_charge_info(subscription: &Subscription) -> NextChargeInfo {
-    let next_charge_timestamp = subscription.last_payment_timestamp
+    let next_charge_timestamp = subscription
+        .last_payment_timestamp
         .saturating_add(subscription.interval_seconds);
-    
+
     let is_charge_expected = match subscription.status {
         SubscriptionStatus::Active => true,
         SubscriptionStatus::InsufficientBalance => true, // Will be retried after funding
         SubscriptionStatus::Paused => false,
         SubscriptionStatus::Cancelled => false,
     };
-    
+
     NextChargeInfo {
         next_charge_timestamp,
         is_charge_expected,
@@ -299,24 +302,36 @@ pub struct SubscriptionVault;
 impl SubscriptionVault {
     /// Initialize the contract (e.g. set token and admin). Extend as needed.
     pub fn init(env: Env, token: Address, admin: Address, min_topup: i128) -> Result<(), Error> {
-        env.storage().instance().set(&Symbol::new(&env, "token"), &token);
-        env.storage().instance().set(&Symbol::new(&env, "admin"), &admin);
-        env.storage().instance().set(&Symbol::new(&env, "min_topup"), &min_topup);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "token"), &token);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "admin"), &admin);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "min_topup"), &min_topup);
         Ok(())
     }
 
     /// Update the minimum top-up threshold. Only callable by admin.
-    /// 
+    ///
     /// # Arguments
     /// * `min_topup` - Minimum amount (in token base units) required for deposit_funds.
     ///                 Prevents inefficient micro-deposits. Typical range: 1-10 USDC (1_000000 - 10_000000 for 6 decimals).
     pub fn set_min_topup(env: Env, admin: Address, min_topup: i128) -> Result<(), Error> {
         admin.require_auth();
-        let stored_admin: Address = env.storage().instance().get(&Symbol::new(&env, "admin")).ok_or(Error::NotFound)?;
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&Symbol::new(&env, "admin"))
+            .ok_or(Error::NotFound)?;
         if admin != stored_admin {
             return Err(Error::Unauthorized);
         }
-        env.storage().instance().set(&Symbol::new(&env, "min_topup"), &min_topup);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "min_topup"), &min_topup);
         Ok(())
     }
 
@@ -378,11 +393,7 @@ impl SubscriptionVault {
     /// - Old admin address
     /// - New admin address
     /// - Timestamp of rotation
-    pub fn rotate_admin(
-        env: Env,
-        current_admin: Address,
-        new_admin: Address,
-    ) -> Result<(), Error> {
+    pub fn rotate_admin(env: Env, current_admin: Address, new_admin: Address) -> Result<(), Error> {
         // 1. Require current admin authorization
         current_admin.require_auth();
 
@@ -392,13 +403,15 @@ impl SubscriptionVault {
             .instance()
             .get(&Symbol::new(&env, "admin"))
             .ok_or(Error::NotFound)?;
-        
+
         if current_admin != stored_admin {
             return Err(Error::Unauthorized);
         }
 
         // 3. Update admin to new address
-        env.storage().instance().set(&Symbol::new(&env, "admin"), &new_admin);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "admin"), &new_admin);
 
         // 4. Emit event for audit trail
         env.events().publish(
@@ -430,7 +443,10 @@ impl SubscriptionVault {
 
     /// Get the current minimum top-up threshold.
     pub fn get_min_topup(env: Env) -> Result<i128, Error> {
-        env.storage().instance().get(&Symbol::new(&env, "min_topup")).ok_or(Error::NotFound)
+        env.storage()
+            .instance()
+            .get(&Symbol::new(&env, "min_topup"))
+            .ok_or(Error::NotFound)
     }
 
     /// Create a new subscription. Caller deposits initial USDC; contract stores agreement.
@@ -460,7 +476,7 @@ impl SubscriptionVault {
     }
 
     /// Subscriber deposits more USDC into their vault for this subscription.
-    /// 
+    ///
     /// # Minimum top-up enforcement
     /// Rejects deposits below the configured minimum threshold to prevent inefficient
     /// micro-transactions that waste gas and complicate accounting. The minimum is set
@@ -472,12 +488,16 @@ impl SubscriptionVault {
         amount: i128,
     ) -> Result<(), Error> {
         subscriber.require_auth();
-        
-        let min_topup: i128 = env.storage().instance().get(&Symbol::new(&env, "min_topup")).ok_or(Error::NotFound)?;
+
+        let min_topup: i128 = env
+            .storage()
+            .instance()
+            .get(&Symbol::new(&env, "min_topup"))
+            .ok_or(Error::NotFound)?;
         if amount < min_topup {
             return Err(Error::BelowMinimumTopup);
         }
-        
+
         // TODO: transfer USDC from subscriber, increase prepaid_balance for subscription_id
         let _ = (env, subscription_id, amount);
         Ok(())
@@ -498,7 +518,9 @@ impl SubscriptionVault {
         let maybe_sub: Option<Subscription> = env.storage().instance().get(&subscription_id);
         if let Some(mut sub) = maybe_sub {
             // Check current status allows charging
-            if sub.status == SubscriptionStatus::Cancelled || sub.status == SubscriptionStatus::Paused {
+            if sub.status == SubscriptionStatus::Cancelled
+                || sub.status == SubscriptionStatus::Paused
+            {
                 // Cannot charge cancelled or paused subscriptions
                 return Err(Error::InvalidStatusTransition);
             }
@@ -706,7 +728,7 @@ impl SubscriptionVault {
             .instance()
             .get(&Symbol::new(&env, "admin"))
             .ok_or(Error::NotFound)?;
-        
+
         if admin != stored_admin {
             return Err(Error::Unauthorized);
         }
@@ -764,7 +786,7 @@ impl SubscriptionVault {
     /// ```ignore
     /// // Get next charge info for subscription ID 0
     /// let info = client.get_next_charge_info(&0);
-    /// 
+    ///
     /// if info.is_charge_expected {
     ///     println!("Next charge at timestamp: {}", info.next_charge_timestamp);
     /// } else {
@@ -778,10 +800,7 @@ impl SubscriptionVault {
     /// 2. **User Dashboard**: Display "Next billing date" to subscribers
     /// 3. **Monitoring**: Detect overdue charges (current_time > next_charge_timestamp + grace_period)
     /// 4. **Analytics**: Track billing cycles and payment patterns
-    pub fn get_next_charge_info(
-        env: Env,
-        subscription_id: u32,
-    ) -> Result<NextChargeInfo, Error> {
+    pub fn get_next_charge_info(env: Env, subscription_id: u32) -> Result<NextChargeInfo, Error> {
         let subscription = Self::get_subscription(env, subscription_id)?;
         Ok(compute_next_charge_info(&subscription))
     }
