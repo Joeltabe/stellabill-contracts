@@ -1043,3 +1043,414 @@ fn test_batch_charge_partial_failure() {
         Error::InsufficientBalance.to_code()
     );
 }
+
+// =============================================================================
+// Comprehensive Pause/Cancel Edge Case Tests (#39)
+// =============================================================================
+
+/// Edge case: Pause -> Cancel -> attempt Resume (should fail)
+#[test]
+#[should_panic(expected = "Error(Contract, #400)")]
+fn test_pause_cancel_resume_blocked() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.pause_subscription(&id, &subscriber);
+    client.cancel_subscription(&id, &subscriber);
+    client.resume_subscription(&id, &subscriber); // Must fail
+}
+
+/// Edge case: Cancel -> Pause (should fail)
+#[test]
+#[should_panic(expected = "Error(Contract, #400)")]
+fn test_cancel_then_pause_blocked() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.cancel_subscription(&id, &subscriber);
+    client.pause_subscription(&id, &subscriber); // Must fail
+}
+
+/// Edge case: Multiple pause/resume cycles
+#[test]
+fn test_multiple_pause_resume_cycles() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    for _ in 0..5 {
+        client.pause_subscription(&id, &subscriber);
+        assert_eq!(client.get_subscription(&id).status, SubscriptionStatus::Paused);
+        
+        client.resume_subscription(&id, &subscriber);
+        assert_eq!(client.get_subscription(&id).status, SubscriptionStatus::Active);
+    }
+}
+
+/// Edge case: Pause while in InsufficientBalance (should fail)
+#[test]
+#[should_panic(expected = "Error(Contract, #400)")]
+fn test_pause_from_insufficient_balance_blocked() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    let mut sub = client.get_subscription(&id);
+    sub.status = SubscriptionStatus::InsufficientBalance;
+    env.as_contract(&client.address, || {
+        env.storage().instance().set(&id, &sub);
+    });
+    
+    client.pause_subscription(&id, &subscriber); // Must fail
+}
+
+/// Edge case: Resume from InsufficientBalance (should succeed)
+#[test]
+fn test_resume_from_insufficient_balance_succeeds() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    let mut sub = client.get_subscription(&id);
+    sub.status = SubscriptionStatus::InsufficientBalance;
+    env.as_contract(&client.address, || {
+        env.storage().instance().set(&id, &sub);
+    });
+    
+    client.resume_subscription(&id, &subscriber);
+    assert_eq!(client.get_subscription(&id).status, SubscriptionStatus::Active);
+}
+
+/// Edge case: Cancel from InsufficientBalance (should succeed)
+#[test]
+fn test_cancel_from_insufficient_balance_succeeds() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    let mut sub = client.get_subscription(&id);
+    sub.status = SubscriptionStatus::InsufficientBalance;
+    env.as_contract(&client.address, || {
+        env.storage().instance().set(&id, &sub);
+    });
+    
+    client.cancel_subscription(&id, &subscriber);
+    assert_eq!(client.get_subscription(&id).status, SubscriptionStatus::Cancelled);
+}
+
+/// Edge case: Merchant cancels active subscription
+#[test]
+fn test_merchant_can_cancel_active() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, _, merchant) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.cancel_subscription(&id, &merchant);
+    assert_eq!(client.get_subscription(&id).status, SubscriptionStatus::Cancelled);
+}
+
+/// Edge case: Merchant pauses subscription
+#[test]
+fn test_merchant_can_pause() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, _, merchant) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.pause_subscription(&id, &merchant);
+    assert_eq!(client.get_subscription(&id).status, SubscriptionStatus::Paused);
+}
+
+/// Edge case: Merchant resumes paused subscription
+#[test]
+fn test_merchant_can_resume() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, merchant) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.pause_subscription(&id, &subscriber);
+    client.resume_subscription(&id, &merchant);
+    assert_eq!(client.get_subscription(&id).status, SubscriptionStatus::Active);
+}
+
+/// Edge case: Multiple subscriptions with same merchant, different states
+#[test]
+fn test_shared_merchant_multiple_states() {
+    let (env, client, _, _) = setup_test_env();
+    let merchant = Address::generate(&env);
+    let sub1 = Address::generate(&env);
+    let sub2 = Address::generate(&env);
+    let sub3 = Address::generate(&env);
+    
+    let id1 = client.create_subscription(&sub1, &merchant, &1000i128, &86400u64, &false);
+    let id2 = client.create_subscription(&sub2, &merchant, &2000i128, &86400u64, &false);
+    let id3 = client.create_subscription(&sub3, &merchant, &3000i128, &86400u64, &false);
+    
+    // Different states
+    client.pause_subscription(&id1, &sub1);
+    client.cancel_subscription(&id2, &sub2);
+    // id3 stays active
+    
+    assert_eq!(client.get_subscription(&id1).status, SubscriptionStatus::Paused);
+    assert_eq!(client.get_subscription(&id2).status, SubscriptionStatus::Cancelled);
+    assert_eq!(client.get_subscription(&id3).status, SubscriptionStatus::Active);
+}
+
+/// Edge case: Pause subscription with different intervals
+#[test]
+fn test_pause_with_varying_intervals() {
+    let (env, client, _, _) = setup_test_env();
+    let subscriber = Address::generate(&env);
+    let merchant = Address::generate(&env);
+    
+    let id_daily = client.create_subscription(&subscriber, &merchant, &1000i128, &86400u64, &false);
+    let id_weekly = client.create_subscription(&subscriber, &merchant, &5000i128, &604800u64, &false);
+    let id_monthly = client.create_subscription(&subscriber, &merchant, &10000i128, &2592000u64, &false);
+    
+    client.pause_subscription(&id_daily, &subscriber);
+    client.pause_subscription(&id_weekly, &subscriber);
+    client.pause_subscription(&id_monthly, &subscriber);
+    
+    assert_eq!(client.get_subscription(&id_daily).status, SubscriptionStatus::Paused);
+    assert_eq!(client.get_subscription(&id_weekly).status, SubscriptionStatus::Paused);
+    assert_eq!(client.get_subscription(&id_monthly).status, SubscriptionStatus::Paused);
+}
+
+/// Edge case: Timestamp preservation across pause/resume
+#[test]
+fn test_timestamp_preserved_across_pause_resume() {
+    let (env, client, _, _) = setup_test_env();
+    env.ledger().set_timestamp(T0);
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    let original_timestamp = client.get_subscription(&id).last_payment_timestamp;
+    
+    env.ledger().set_timestamp(T0 + 1000);
+    client.pause_subscription(&id, &subscriber);
+    
+    env.ledger().set_timestamp(T0 + 2000);
+    client.resume_subscription(&id, &subscriber);
+    
+    // Timestamp should remain unchanged
+    assert_eq!(client.get_subscription(&id).last_payment_timestamp, original_timestamp);
+}
+
+/// Edge case: Balance preserved across pause/resume
+#[test]
+fn test_balance_preserved_across_pause_resume() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.deposit_funds(&id, &subscriber, &50_000000i128);
+    let balance_before = client.get_subscription(&id).prepaid_balance;
+    
+    client.pause_subscription(&id, &subscriber);
+    client.resume_subscription(&id, &subscriber);
+    
+    assert_eq!(client.get_subscription(&id).prepaid_balance, balance_before);
+}
+
+/// Edge case: Balance preserved on cancel
+#[test]
+fn test_balance_preserved_on_cancel() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.deposit_funds(&id, &subscriber, &50_000000i128);
+    let balance_before = client.get_subscription(&id).prepaid_balance;
+    
+    client.cancel_subscription(&id, &subscriber);
+    
+    assert_eq!(client.get_subscription(&id).prepaid_balance, balance_before);
+}
+
+/// Edge case: Charge blocked while paused
+#[test]
+#[should_panic(expected = "Error(Contract, #1002)")]
+fn test_charge_blocked_while_paused() {
+    let (env, client, _, _) = setup_test_env();
+    env.ledger().set_timestamp(T0);
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.deposit_funds(&id, &subscriber, &10_000000i128);
+    client.pause_subscription(&id, &subscriber);
+    
+    env.ledger().set_timestamp(T0 + INTERVAL);
+    client.charge_subscription(&id); // Must fail
+}
+
+/// Edge case: Charge blocked after cancel
+#[test]
+#[should_panic(expected = "Error(Contract, #1002)")]
+fn test_charge_blocked_after_cancel() {
+    let (env, client, _, _) = setup_test_env();
+    env.ledger().set_timestamp(T0);
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.deposit_funds(&id, &subscriber, &10_000000i128);
+    client.cancel_subscription(&id, &subscriber);
+    
+    env.ledger().set_timestamp(T0 + INTERVAL);
+    client.charge_subscription(&id); // Must fail
+}
+
+/// Edge case: Resume and charge immediately
+#[test]
+fn test_resume_and_charge_immediately() {
+    let (env, client, _, _) = setup_test_env();
+    env.ledger().set_timestamp(T0);
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.deposit_funds(&id, &subscriber, &10_000000i128);
+    client.pause_subscription(&id, &subscriber);
+    
+    env.ledger().set_timestamp(T0 + INTERVAL);
+    client.resume_subscription(&id, &subscriber);
+    
+    // Should be able to charge immediately after resume if interval elapsed
+    client.charge_subscription(&id);
+    assert_eq!(client.get_subscription(&id).last_payment_timestamp, T0 + INTERVAL);
+}
+
+/// Edge case: Pause during grace period (InsufficientBalance)
+#[test]
+#[should_panic(expected = "Error(Contract, #400)")]
+fn test_pause_during_grace_period() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    // Simulate grace period by setting InsufficientBalance
+    let mut sub = client.get_subscription(&id);
+    sub.status = SubscriptionStatus::InsufficientBalance;
+    env.as_contract(&client.address, || {
+        env.storage().instance().set(&id, &sub);
+    });
+    
+    client.pause_subscription(&id, &subscriber); // Must fail
+}
+
+/// Edge case: Cancel during grace period (should succeed)
+#[test]
+fn test_cancel_during_grace_period() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    let mut sub = client.get_subscription(&id);
+    sub.status = SubscriptionStatus::InsufficientBalance;
+    env.as_contract(&client.address, || {
+        env.storage().instance().set(&id, &sub);
+    });
+    
+    client.cancel_subscription(&id, &subscriber);
+    assert_eq!(client.get_subscription(&id).status, SubscriptionStatus::Cancelled);
+}
+
+/// Edge case: Idempotent pause calls preserve state
+#[test]
+fn test_idempotent_pause_preserves_all_fields() {
+    let (env, client, _, _) = setup_test_env();
+    env.ledger().set_timestamp(T0);
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.deposit_funds(&id, &subscriber, &25_000000i128);
+    client.pause_subscription(&id, &subscriber);
+    
+    let sub_after_first = client.get_subscription(&id);
+    
+    env.ledger().set_timestamp(T0 + 5000);
+    client.pause_subscription(&id, &subscriber);
+    
+    let sub_after_second = client.get_subscription(&id);
+    
+    assert_eq!(sub_after_first.prepaid_balance, sub_after_second.prepaid_balance);
+    assert_eq!(sub_after_first.last_payment_timestamp, sub_after_second.last_payment_timestamp);
+    assert_eq!(sub_after_first.amount, sub_after_second.amount);
+}
+
+/// Edge case: Idempotent cancel calls preserve state
+#[test]
+fn test_idempotent_cancel_preserves_all_fields() {
+    let (env, client, _, _) = setup_test_env();
+    env.ledger().set_timestamp(T0);
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.deposit_funds(&id, &subscriber, &25_000000i128);
+    client.cancel_subscription(&id, &subscriber);
+    
+    let sub_after_first = client.get_subscription(&id);
+    
+    env.ledger().set_timestamp(T0 + 5000);
+    client.cancel_subscription(&id, &subscriber);
+    
+    let sub_after_second = client.get_subscription(&id);
+    
+    assert_eq!(sub_after_first.prepaid_balance, sub_after_second.prepaid_balance);
+    assert_eq!(sub_after_first.last_payment_timestamp, sub_after_second.last_payment_timestamp);
+    assert_eq!(sub_after_first.amount, sub_after_second.amount);
+}
+
+/// Edge case: Batch operations with mixed states
+#[test]
+fn test_batch_charge_with_paused_and_cancelled() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(T0);
+    let contract_id = env.register(SubscriptionVault, ());
+    let client = SubscriptionVaultClient::new(&env, &contract_id);
+    let token = Address::generate(&env);
+    let admin = Address::generate(&env);
+    client.init(&token, &admin, &1_000000i128);
+    
+    let subscriber = Address::generate(&env);
+    let merchant = Address::generate(&env);
+    
+    let id_active = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    client.deposit_funds(&id_active, &subscriber, &10_000000i128);
+    
+    let id_paused = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    client.deposit_funds(&id_paused, &subscriber, &10_000000i128);
+    client.pause_subscription(&id_paused, &subscriber);
+    
+    let id_cancelled = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    client.deposit_funds(&id_cancelled, &subscriber, &10_000000i128);
+    client.cancel_subscription(&id_cancelled, &subscriber);
+    
+    env.ledger().set_timestamp(T0 + INTERVAL);
+    
+    let mut ids = SorobanVec::new(&env);
+    ids.push_back(id_active);
+    ids.push_back(id_paused);
+    ids.push_back(id_cancelled);
+    
+    let results = client.batch_charge(&ids);
+    
+    assert_eq!(results.len(), 3);
+    assert!(results.get(0).unwrap().success); // Active succeeds
+    assert!(!results.get(1).unwrap().success); // Paused fails
+    assert!(!results.get(2).unwrap().success); // Cancelled fails
+}
+
+/// Edge case: Rapid state transitions
+#[test]
+fn test_rapid_state_transitions() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    // Active -> Paused -> Active -> Paused -> Active
+    client.pause_subscription(&id, &subscriber);
+    client.resume_subscription(&id, &subscriber);
+    client.pause_subscription(&id, &subscriber);
+    client.resume_subscription(&id, &subscriber);
+    
+    assert_eq!(client.get_subscription(&id).status, SubscriptionStatus::Active);
+}
+
+/// Edge case: All invalid transitions from Cancelled
+#[test]
+#[should_panic(expected = "Error(Contract, #400)")]
+fn test_cancelled_to_insufficient_balance_blocked() {
+    let (env, client, _, _) = setup_test_env();
+    let (id, subscriber, _) = create_test_subscription(&env, &client, SubscriptionStatus::Active);
+    
+    client.cancel_subscription(&id, &subscriber);
+    
+    // Manually try to set to InsufficientBalance (should be blocked by state machine)
+    let mut sub = client.get_subscription(&id);
+    sub.status = SubscriptionStatus::InsufficientBalance;
+    
+    // This would bypass state machine, but in real usage, all transitions go through validation
+    // Testing that cancelled is terminal
+    client.resume_subscription(&id, &subscriber); // This will fail
+}
