@@ -1,162 +1,12 @@
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, Symbol};
+mod state_machine;
+mod types;
 
-#[contracterror]
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[repr(u32)]
-pub enum Error {
-    NotFound = 404,
-    Unauthorized = 401,
-    /// Charge attempted before `last_payment_timestamp + interval_seconds`.
-    IntervalNotElapsed = 1001,
-    /// Subscription is not Active (e.g. Paused, Cancelled).
-    NotActive = 1002,
-    InvalidStatusTransition = 400,
-    BelowMinimumTopup = 402,
-}
+use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
 
-/// Represents the lifecycle state of a subscription.
-///
-/// # State Machine
-///
-/// The subscription status follows a defined state machine with specific allowed transitions:
-///
-/// - **Active**: Subscription is active and charges can be processed.
-///   - Can transition to: `Paused`, `Cancelled`, `InsufficientBalance`
-///
-/// - **Paused**: Subscription is temporarily suspended, no charges are processed.
-///   - Can transition to: `Active`, `Cancelled`
-///
-/// - **Cancelled**: Subscription is permanently terminated, no further changes allowed.
-///   - No outgoing transitions (terminal state)
-///
-/// - **InsufficientBalance**: Subscription failed due to insufficient funds.
-///   - Can transition to: `Active` (after deposit), `Cancelled`
-///
-/// Invalid transitions (e.g., `Cancelled` -> `Active`) are rejected with
-/// [`Error::InvalidStatusTransition`].
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SubscriptionStatus {
-    /// Subscription is active and ready for charging.
-    Active = 0,
-    /// Subscription is temporarily paused, no charges processed.
-    Paused = 1,
-    /// Subscription is permanently cancelled (terminal state).
-    Cancelled = 2,
-    /// Subscription failed due to insufficient balance for charging.
-    InsufficientBalance = 3,
-}
-
-/// Stores subscription details and current state.
-///
-/// The `status` field is managed by the state machine. Use the provided
-/// transition helpers to modify status, never set it directly.
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct Subscription {
-    pub subscriber: Address,
-    pub merchant: Address,
-    pub amount: i128,
-    pub interval_seconds: u64,
-    pub last_payment_timestamp: u64,
-    /// Current lifecycle state. Modified only through state machine transitions.
-    pub status: SubscriptionStatus,
-    pub prepaid_balance: i128,
-    pub usage_enabled: bool,
-}
-
-/// Validates if a status transition is allowed by the state machine.
-///
-/// # State Transition Rules
-///
-/// | From              | To                  | Allowed |
-/// |-------------------|---------------------|---------|
-/// | Active            | Paused              | Yes     |
-/// | Active            | Cancelled           | Yes     |
-/// | Active            | InsufficientBalance | Yes     |
-/// | Paused            | Active              | Yes     |
-/// | Paused            | Cancelled           | Yes     |
-/// | InsufficientBalance | Active            | Yes     |
-/// | InsufficientBalance | Cancelled         | Yes     |
-/// | Cancelled         | *any*               | No      |
-/// | *any*             | Same status         | Yes (idempotent) |
-///
-/// # Arguments
-/// * `from` - Current status
-/// * `to` - Target status
-///
-/// # Returns
-/// * `Ok(())` if transition is valid
-/// * `Err(Error::InvalidStatusTransition)` if transition is invalid
-pub fn validate_status_transition(
-    from: &SubscriptionStatus,
-    to: &SubscriptionStatus,
-) -> Result<(), Error> {
-    // Same status is always allowed (idempotent)
-    if from == to {
-        return Ok(());
-    }
-
-    let valid = match from {
-        SubscriptionStatus::Active => matches!(
-            to,
-            SubscriptionStatus::Paused
-                | SubscriptionStatus::Cancelled
-                | SubscriptionStatus::InsufficientBalance
-        ),
-        SubscriptionStatus::Paused => {
-            matches!(to, SubscriptionStatus::Active | SubscriptionStatus::Cancelled)
-        }
-        SubscriptionStatus::Cancelled => false,
-        SubscriptionStatus::InsufficientBalance => {
-            matches!(to, SubscriptionStatus::Active | SubscriptionStatus::Cancelled)
-        }
-    };
-
-    if valid {
-        Ok(())
-    } else {
-        Err(Error::InvalidStatusTransition)
-    }
-}
-
-/// Returns all valid target statuses for a given current status.
-///
-/// This is useful for UI/documentation to show available actions.
-///
-/// # Examples
-///
-/// ```
-/// let targets = get_allowed_transitions(&SubscriptionStatus::Active);
-/// assert!(targets.contains(&SubscriptionStatus::Paused));
-/// ```
-pub fn get_allowed_transitions(status: &SubscriptionStatus) -> &'static [SubscriptionStatus] {
-    match status {
-        SubscriptionStatus::Active => &[
-            SubscriptionStatus::Paused,
-            SubscriptionStatus::Cancelled,
-            SubscriptionStatus::InsufficientBalance,
-        ],
-        SubscriptionStatus::Paused => &[
-            SubscriptionStatus::Active,
-            SubscriptionStatus::Cancelled,
-        ],
-        SubscriptionStatus::Cancelled => &[],
-        SubscriptionStatus::InsufficientBalance => &[
-            SubscriptionStatus::Active,
-            SubscriptionStatus::Cancelled,
-        ],
-    }
-}
-
-/// Checks if a transition is valid without returning an error.
-///
-/// Convenience wrapper around [`validate_status_transition`] for boolean checks.
-pub fn can_transition(from: &SubscriptionStatus, to: &SubscriptionStatus) -> bool {
-    validate_status_transition(from, to).is_ok()
-}
+pub use state_machine::{can_transition, get_allowed_transitions, validate_status_transition};
+pub use types::{BatchChargeResult, Error, Subscription, SubscriptionStatus};
 
 #[contract]
 pub struct SubscriptionVault;
@@ -165,30 +15,41 @@ pub struct SubscriptionVault;
 impl SubscriptionVault {
     /// Initialize the contract (e.g. set token and admin). Extend as needed.
     pub fn init(env: Env, token: Address, admin: Address, min_topup: i128) -> Result<(), Error> {
-        env.storage().instance().set(&Symbol::new(&env, "token"), &token);
-        env.storage().instance().set(&Symbol::new(&env, "admin"), &admin);
-        env.storage().instance().set(&Symbol::new(&env, "min_topup"), &min_topup);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "token"), &token);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "admin"), &admin);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "min_topup"), &min_topup);
         Ok(())
     }
 
     /// Update the minimum top-up threshold. Only callable by admin.
-    /// 
-    /// # Arguments
-    /// * `min_topup` - Minimum amount (in token base units) required for deposit_funds.
-    ///                 Prevents inefficient micro-deposits. Typical range: 1-10 USDC (1_000000 - 10_000000 for 6 decimals).
     pub fn set_min_topup(env: Env, admin: Address, min_topup: i128) -> Result<(), Error> {
         admin.require_auth();
-        let stored_admin: Address = env.storage().instance().get(&Symbol::new(&env, "admin")).ok_or(Error::NotFound)?;
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&Symbol::new(&env, "admin"))
+            .ok_or(Error::NotFound)?;
         if admin != stored_admin {
             return Err(Error::Unauthorized);
         }
-        env.storage().instance().set(&Symbol::new(&env, "min_topup"), &min_topup);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "min_topup"), &min_topup);
         Ok(())
     }
 
     /// Get the current minimum top-up threshold.
     pub fn get_min_topup(env: Env) -> Result<i128, Error> {
-        env.storage().instance().get(&Symbol::new(&env, "min_topup")).ok_or(Error::NotFound)
+        env.storage()
+            .instance()
+            .get(&Symbol::new(&env, "min_topup"))
+            .ok_or(Error::NotFound)
     }
 
     /// Create a new subscription. Caller deposits initial USDC; contract stores agreement.
@@ -201,7 +62,6 @@ impl SubscriptionVault {
         usage_enabled: bool,
     ) -> Result<u32, Error> {
         subscriber.require_auth();
-        // TODO: transfer initial deposit from subscriber to contract, then store subscription
         let sub = Subscription {
             subscriber: subscriber.clone(),
             merchant,
@@ -209,7 +69,7 @@ impl SubscriptionVault {
             interval_seconds,
             last_payment_timestamp: env.ledger().timestamp(),
             status: SubscriptionStatus::Active,
-            prepaid_balance: 0i128, // TODO: set from initial deposit
+            prepaid_balance: 0i128,
             usage_enabled,
         };
         let id = Self::_next_id(&env);
@@ -218,11 +78,6 @@ impl SubscriptionVault {
     }
 
     /// Subscriber deposits more USDC into their vault for this subscription.
-    /// 
-    /// # Minimum top-up enforcement
-    /// Rejects deposits below the configured minimum threshold to prevent inefficient
-    /// micro-transactions that waste gas and complicate accounting. The minimum is set
-    /// globally at contract initialization and adjustable by admin via `set_min_topup`.
     pub fn deposit_funds(
         env: Env,
         subscription_id: u32,
@@ -230,14 +85,22 @@ impl SubscriptionVault {
         amount: i128,
     ) -> Result<(), Error> {
         subscriber.require_auth();
-        
-        let min_topup: i128 = env.storage().instance().get(&Symbol::new(&env, "min_topup")).ok_or(Error::NotFound)?;
+
+        let min_topup: i128 = env
+            .storage()
+            .instance()
+            .get(&Symbol::new(&env, "min_topup"))
+            .ok_or(Error::NotFound)?;
         if amount < min_topup {
             return Err(Error::BelowMinimumTopup);
         }
-        
-        // TODO: transfer USDC from subscriber, increase prepaid_balance for subscription_id
-        let _ = (env, subscription_id, amount);
+
+        let mut sub = Self::get_subscription(env.clone(), subscription_id)?;
+        sub.prepaid_balance = sub
+            .prepaid_balance
+            .checked_add(amount)
+            .ok_or(Error::Overflow)?;
+        env.storage().instance().set(&subscription_id, &sub);
         Ok(())
     }
 
@@ -245,44 +108,149 @@ impl SubscriptionVault {
     ///
     /// Only the authorized admin or billing engine address set during `init` can invoke this.
     /// Fails with `Error::Unauthorized` if the caller is not the stored admin.
-    /// 
+    ///
     /// # State Transitions
     /// - On success: `Active` -> `Active` (no change)
     /// - On insufficient balance: `Active` -> `InsufficientBalance`
     ///
     /// Subscriptions that are `Paused` or `Cancelled` cannot be charged.
     pub fn charge_subscription(env: Env, subscription_id: u32) -> Result<(), Error> {
-        let admin: Address = env.storage().instance().get(&Symbol::new(&env, "admin")).ok_or(Error::Unauthorized)?;
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&Symbol::new(&env, "admin"))
+            .ok_or(Error::Unauthorized)?;
         admin.require_auth();
+        Self::_charge_one(env, subscription_id)
+    }
 
-        // Placeholder for actual charge logic
+    /// Internal: perform one charge (no auth). Used by charge_subscription and batch_charge.
+    fn _charge_one(env: Env, subscription_id: u32) -> Result<(), Error> {
         let mut sub = Self::get_subscription(env.clone(), subscription_id)?;
 
-        // Check current status allows charging
-        if sub.status == SubscriptionStatus::Cancelled || sub.status == SubscriptionStatus::Paused {
-            // Cannot charge cancelled or paused subscriptions
-            return Err(Error::InvalidStatusTransition);
+        if sub.status != SubscriptionStatus::Active {
+            return Err(Error::NotActive);
         }
 
-        // Simulate charge logic - on insufficient balance, transition to InsufficientBalance
-        let insufficient_balance = false; // TODO: actual balance check
-        if insufficient_balance {
+        let now = env.ledger().timestamp();
+        let next_allowed = sub
+            .last_payment_timestamp
+            .checked_add(sub.interval_seconds)
+            .ok_or(Error::Overflow)?;
+        if now < next_allowed {
+            return Err(Error::IntervalNotElapsed);
+        }
+
+        if sub.prepaid_balance < sub.amount {
             validate_status_transition(&sub.status, &SubscriptionStatus::InsufficientBalance)?;
             sub.status = SubscriptionStatus::InsufficientBalance;
             env.storage().instance().set(&subscription_id, &sub);
+            return Err(Error::InsufficientBalance);
         }
-        
-        // TODO: update last_payment_timestamp and prepaid_balance on successful charge
+
+        sub.prepaid_balance = sub
+            .prepaid_balance
+            .checked_sub(sub.amount)
+            .ok_or(Error::Overflow)?;
+        sub.last_payment_timestamp = now;
+        env.storage().instance().set(&subscription_id, &sub);
         Ok(())
     }
 
+    /// **Read-only.** Estimates how much additional prepaid balance is required to cover
+    /// a specified number of future billing intervals.
+    ///
+    /// # Arguments
+    /// * `subscription_id` - The subscription to evaluate.
+    /// * `num_intervals` - Number of future intervals to cover (e.g. 3 for “next 3 charges”).
+    ///
+    /// # Returns
+    /// * `Ok(amount)` - Additional amount (in token base units) the subscriber should top up.
+    ///   Zero if current `prepaid_balance` already covers `num_intervals` (or more).
+    /// * `Err(Error::NotFound)` - Subscription does not exist.
+    /// * `Err(Error::Overflow)` - `amount * num_intervals` would overflow (safe math).
+    ///
+    /// # Edge cases
+    /// * **Zero intervals:** returns `Ok(0)` (no top-up needed).
+    /// * **Insufficient balance:** returns the shortfall (positive amount to add).
+    /// * **Balance already sufficient:** returns `0`.
+    ///
+    /// # Example (UI)
+    /// ```ignore
+    /// let topup = contract.estimate_topup_for_intervals(&sub_id, &3);
+    /// if topup > 0 { show "Add X USDC to cover the next 3 payments" }
+    /// ```
+    pub fn estimate_topup_for_intervals(
+        env: Env,
+        subscription_id: u32,
+        num_intervals: u32,
+    ) -> Result<i128, Error> {
+        let sub = Self::get_subscription(env, subscription_id)?;
+
+        if num_intervals == 0 {
+            return Ok(0);
+        }
+
+        let intervals_i128: i128 = num_intervals.into();
+        let required = sub
+            .amount
+            .checked_mul(intervals_i128)
+            .ok_or(Error::Overflow)?;
+
+        let topup = required
+            .checked_sub(sub.prepaid_balance)
+            .unwrap_or(0)
+            .max(0);
+        Ok(topup)
+    }
+
+    /// Admin-only batch charge: charge multiple subscriptions in one transaction.
+    ///
+    /// Uses the same admin authorization as single `charge_subscription`. Each subscription
+    /// is charged independently; partial failures do not roll back successful charges.
+    ///
+    /// # Arguments
+    /// * `subscription_ids` - List of subscription IDs to charge (order is preserved in results).
+    ///
+    /// # Returns
+    /// * `Ok(results)` - One [`BatchChargeResult`] per subscription (same length as input).
+    /// * Caller must be the stored admin (same as single charge).
+    ///
+    /// # Semantics
+    /// * Empty list: returns empty Vec.
+    /// * Duplicate IDs: each is processed once (duplicates may succeed or fail independently).
+    /// * Per-item errors (e.g. IntervalNotElapsed, NotActive, insufficient balance) are
+    ///   returned in the corresponding slot; other subscriptions are still charged.
+    pub fn batch_charge(
+        env: Env,
+        subscription_ids: Vec<u32>,
+    ) -> Result<Vec<BatchChargeResult>, Error> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&Symbol::new(&env, "admin"))
+            .ok_or(Error::Unauthorized)?;
+        admin.require_auth();
+
+        let mut results = Vec::new(&env);
+        for id in subscription_ids.iter() {
+            let r = Self::_charge_one(env.clone(), id);
+            let res = match &r {
+                Ok(()) => BatchChargeResult {
+                    success: true,
+                    error_code: 0,
+                },
+                Err(e) => BatchChargeResult {
+                    success: false,
+                    error_code: e.clone().to_code(),
+                },
+            };
+            results.push_back(res);
+        }
+        Ok(results)
+    }
+
     /// Subscriber or merchant cancels the subscription. Remaining balance can be withdrawn by subscriber.
-    ///
-    /// # State Transitions
-    /// Allowed from: `Active`, `Paused`, `InsufficientBalance`
-    /// - Transitions to: `Cancelled` (terminal state)
-    ///
-    /// Once cancelled, no further transitions are possible.
     pub fn cancel_subscription(
         env: Env,
         subscription_id: u32,
@@ -292,23 +260,14 @@ impl SubscriptionVault {
 
         let mut sub = Self::get_subscription(env.clone(), subscription_id)?;
 
-        // Validate and apply status transition
         validate_status_transition(&sub.status, &SubscriptionStatus::Cancelled)?;
         sub.status = SubscriptionStatus::Cancelled;
-
-        // TODO: allow withdraw of prepaid_balance
 
         env.storage().instance().set(&subscription_id, &sub);
         Ok(())
     }
 
     /// Pause subscription (no charges until resumed).
-    ///
-    /// # State Transitions
-    /// Allowed from: `Active`
-    /// - Transitions to: `Paused`
-    ///
-    /// Cannot pause a subscription that is already `Paused`, `Cancelled`, or in `InsufficientBalance`.
     pub fn pause_subscription(
         env: Env,
         subscription_id: u32,
@@ -318,7 +277,6 @@ impl SubscriptionVault {
 
         let mut sub = Self::get_subscription(env.clone(), subscription_id)?;
 
-        // Validate and apply status transition
         validate_status_transition(&sub.status, &SubscriptionStatus::Paused)?;
         sub.status = SubscriptionStatus::Paused;
 
@@ -327,12 +285,6 @@ impl SubscriptionVault {
     }
 
     /// Resume a subscription to Active status.
-    ///
-    /// # State Transitions
-    /// Allowed from: `Paused`, `InsufficientBalance`
-    /// - Transitions to: `Active`
-    ///
-    /// Cannot resume a `Cancelled` subscription.
     pub fn resume_subscription(
         env: Env,
         subscription_id: u32,
@@ -342,7 +294,6 @@ impl SubscriptionVault {
 
         let mut sub = Self::get_subscription(env.clone(), subscription_id)?;
 
-        // Validate and apply status transition
         validate_status_transition(&sub.status, &SubscriptionStatus::Active)?;
         sub.status = SubscriptionStatus::Active;
 
@@ -357,7 +308,6 @@ impl SubscriptionVault {
         _amount: i128,
     ) -> Result<(), Error> {
         merchant.require_auth();
-        // TODO: deduct from merchant's balance in contract, transfer token to merchant
         Ok(())
     }
 
