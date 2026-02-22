@@ -62,11 +62,11 @@ pub fn do_deposit_funds(
     Ok(())
 }
 
-pub fn do_charge_subscription(env: &Env, subscription_id: u32) -> Result<(), Error> {
-    let admin = require_admin(env)?;
-    admin.require_auth();
-    charge_one(env, subscription_id)
-}
+// pub fn do_charge_subscription(env: &Env, subscription_id: u32) -> Result<(), Error> {
+//     let admin = require_admin(env)?;
+//     admin.require_auth();
+//     charge_one(env, subscription_id)
+// }
 
 pub fn do_cancel_subscription(
     env: &Env,
