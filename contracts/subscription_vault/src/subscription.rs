@@ -2,11 +2,9 @@
 //!
 //! **PRs that only change subscription lifecycle or billing should edit this file only.**
 
-use crate::admin::require_admin;
-use crate::charge_core::charge_one;
 use crate::queries::get_subscription;
-use crate::state_machine::validate_status_transition;
 use crate::types::{Error, Subscription, SubscriptionStatus};
+use crate::validate_status_transition;
 use soroban_sdk::{Address, Env, Symbol};
 
 pub fn next_id(env: &Env) -> u32 {
