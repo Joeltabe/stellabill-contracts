@@ -1670,12 +1670,17 @@ fn setup_batch_env(env: &Env) -> (SubscriptionVaultClient<'static>, Address, u32
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(env, &contract_id);
-    let token = Address::generate(env);
     let admin = Address::generate(env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(env, &token);
     client.init(&token, &admin, &1_000000i128);
     let subscriber = Address::generate(env);
     let merchant = Address::generate(env);
     let id0 = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000000i128);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id0, &subscriber, &10_000000i128);
     let id1 = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
     env.ledger().set_timestamp(T0 + INTERVAL);
@@ -1705,8 +1710,11 @@ fn test_batch_charge_small_batch_5_subscriptions() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -1716,6 +1724,7 @@ fn test_batch_charge_small_batch_5_subscriptions() {
     // Create 5 subscriptions with sufficient balance
     for _ in 0..5 {
         let id = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+        token_admin.mint(&subscriber, &10_000000i128);
         client.deposit_funds(&id, &subscriber, &10_000000i128);
         ids.push_back(id as u32);
     }
@@ -1737,8 +1746,11 @@ fn test_batch_charge_medium_batch_20_subscriptions() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -1748,6 +1760,7 @@ fn test_batch_charge_medium_batch_20_subscriptions() {
     // Create 20 subscriptions
     for _ in 0..20 {
         let id = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+        token_admin.mint(&subscriber, &10_000000i128);
         client.deposit_funds(&id, &subscriber, &10_000000i128);
         ids.push_back(id as u32);
     }
@@ -1768,8 +1781,11 @@ fn test_batch_charge_large_batch_50_subscriptions() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -1779,6 +1795,7 @@ fn test_batch_charge_large_batch_50_subscriptions() {
     // Create 50 subscriptions to test scalability
     for _ in 0..50 {
         let id = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+        token_admin.mint(&subscriber, &10_000000i128);
         client.deposit_funds(&id, &subscriber, &10_000000i128);
         ids.push_back(id as u32);
     }
@@ -1803,8 +1820,11 @@ fn test_batch_charge_mixed_success_and_insufficient_balance() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -1815,6 +1835,7 @@ fn test_batch_charge_mixed_success_and_insufficient_balance() {
     for i in 0..4 {
         let id = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
         if i % 2 == 0 {
+            token_admin.mint(&subscriber, &10_000000i128);
             client.deposit_funds(&id, &subscriber, &10_000000i128);
         }
         // Odd indices have no funds
@@ -1848,8 +1869,11 @@ fn test_batch_charge_mixed_interval_not_elapsed() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -1859,7 +1883,9 @@ fn test_batch_charge_mixed_interval_not_elapsed() {
     let id_short = client.create_subscription(&subscriber, &merchant, &1000i128, &1800, &false); // 30 min
     let id_long = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false); // 30 days
 
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id_short, &subscriber, &10_000000i128);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id_long, &subscriber, &10_000000i128);
 
     // Advance time only enough for short interval
@@ -1887,17 +1913,22 @@ fn test_batch_charge_mixed_paused_and_active() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
     let merchant = Address::generate(&env);
 
     let id0 = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id0, &subscriber, &10_000000i128);
 
     let id1 = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id1, &subscriber, &10_000000i128);
     client.pause_subscription(&id1, &subscriber); // Pause this one
 
@@ -1925,17 +1956,22 @@ fn test_batch_charge_mixed_cancelled_and_active() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
     let merchant = Address::generate(&env);
 
     let id0 = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id0, &subscriber, &10_000000i128);
 
     let id1 = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id1, &subscriber, &10_000000i128);
     client.cancel_subscription(&id1, &subscriber); // Cancel this one
 
@@ -1989,8 +2025,11 @@ fn test_batch_charge_all_different_error_types() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -1999,6 +2038,7 @@ fn test_batch_charge_all_different_error_types() {
     // Sub 0: Success case
     let id_success =
         client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id_success, &subscriber, &10_000000i128);
 
     // Sub 1: Insufficient balance
@@ -2008,6 +2048,7 @@ fn test_batch_charge_all_different_error_types() {
     // Sub 2: Paused
     let id_paused =
         client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id_paused, &subscriber, &10_000000i128);
     client.pause_subscription(&id_paused, &subscriber);
 
@@ -2058,8 +2099,11 @@ fn test_batch_charge_successful_charges_update_state() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -2068,6 +2112,7 @@ fn test_batch_charge_successful_charges_update_state() {
 
     let id = client.create_subscription(&subscriber, &merchant, &charge_amount, &INTERVAL, &false);
     let initial_balance = 10_000_000i128;
+    token_admin.mint(&subscriber, &initial_balance);
     client.deposit_funds(&id, &subscriber, &initial_balance);
 
     let sub_before = client.get_subscription(&id);
@@ -2093,8 +2138,11 @@ fn test_batch_charge_failed_charges_leave_state_unchanged() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -2130,8 +2178,11 @@ fn test_batch_charge_partial_batch_correct_final_state() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -2139,12 +2190,14 @@ fn test_batch_charge_partial_batch_correct_final_state() {
     let amount = 1_000_000i128;
 
     let id0 = client.create_subscription(&subscriber, &merchant, &amount, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000_000i128);
     client.deposit_funds(&id0, &subscriber, &10_000_000i128);
 
     let id1 = client.create_subscription(&subscriber, &merchant, &amount, &INTERVAL, &false);
     // id1 has no funds - will fail
 
     let id2 = client.create_subscription(&subscriber, &merchant, &amount, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000_000i128);
     client.deposit_funds(&id2, &subscriber, &10_000_000i128);
 
     env.ledger().set_timestamp(T0 + INTERVAL);
@@ -2182,8 +2235,11 @@ fn test_batch_charge_multiple_rounds_state_consistency() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -2191,6 +2247,7 @@ fn test_batch_charge_multiple_rounds_state_consistency() {
     let amount = 1_000_000i128;
 
     let id = client.create_subscription(&subscriber, &merchant, &amount, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000_000i128);
     client.deposit_funds(&id, &subscriber, &10_000_000i128);
 
     let mut ids = SorobanVec::<u32>::new(&env);
@@ -2220,8 +2277,11 @@ fn test_batch_charge_requires_admin_auth() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -2284,8 +2344,11 @@ fn test_batch_charge_exhausts_balance_exactly() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -2293,6 +2356,7 @@ fn test_batch_charge_exhausts_balance_exactly() {
     let amount = 5_000_000i128;
 
     let id = client.create_subscription(&subscriber, &merchant, &amount, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &amount);
     client.deposit_funds(&id, &subscriber, &amount); // Exact amount for one charge
 
     env.ledger().set_timestamp(T0 + INTERVAL);
@@ -2314,8 +2378,11 @@ fn test_batch_charge_balance_off_by_one_insufficient() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
@@ -2323,6 +2390,7 @@ fn test_batch_charge_balance_off_by_one_insufficient() {
     let amount = 5_000_000i128;
 
     let id = client.create_subscription(&subscriber, &merchant, &amount, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &(amount - 1));
     client.deposit_funds(&id, &subscriber, &(amount - 1)); // One stroops short
 
     env.ledger().set_timestamp(T0 + INTERVAL);
@@ -2345,20 +2413,25 @@ fn test_batch_charge_result_indices_match_input_order() {
     env.ledger().set_timestamp(T0);
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
-    let token = Address::generate(&env);
     let admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
     let subscriber = Address::generate(&env);
     let merchant = Address::generate(&env);
 
     let id0 = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id0, &subscriber, &10_000000i128);
 
     let id1 = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
     // No funds for id1
 
     let id2 = client.create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    token_admin.mint(&subscriber, &10_000000i128);
     client.deposit_funds(&id2, &subscriber, &10_000000i128);
 
     env.ledger().set_timestamp(T0 + INTERVAL);
@@ -4375,6 +4448,7 @@ fn prop_deposit_increases_balance_exactly() {
         // Mint enough tokens so the transfer succeeds
         token_admin.mint(&subscriber, &deposit);
 
+        token_admin.mint(&subscriber, &deposit);
         client.deposit_funds(&id, &subscriber, &deposit);
 
         let sub_after = client.get_subscription(&id);
