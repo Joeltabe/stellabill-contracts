@@ -1995,7 +1995,9 @@ fn test_batch_charge_small_batch_5_subscriptions() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2029,7 +2031,9 @@ fn test_batch_charge_medium_batch_20_subscriptions() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2062,7 +2066,9 @@ fn test_batch_charge_large_batch_50_subscriptions() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2099,7 +2105,9 @@ fn test_batch_charge_mixed_success_and_insufficient_balance() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2146,7 +2154,9 @@ fn test_batch_charge_mixed_interval_not_elapsed() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2187,7 +2197,9 @@ fn test_batch_charge_mixed_paused_and_active() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2227,7 +2239,9 @@ fn test_batch_charge_mixed_cancelled_and_active() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2293,7 +2307,9 @@ fn test_batch_charge_all_different_error_types() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2364,7 +2380,9 @@ fn test_batch_charge_successful_charges_update_state() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2401,7 +2419,9 @@ fn test_batch_charge_failed_charges_leave_state_unchanged() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2440,7 +2460,9 @@ fn test_batch_charge_partial_batch_correct_final_state() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2494,7 +2516,9 @@ fn test_batch_charge_multiple_rounds_state_consistency() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2598,7 +2622,9 @@ fn test_batch_charge_exhausts_balance_exactly() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2630,7 +2656,9 @@ fn test_batch_charge_balance_off_by_one_insufficient() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -2663,7 +2691,9 @@ fn test_batch_charge_result_indices_match_input_order() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token_addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_addr = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token_addr);
     client.init(&token_addr, &admin, &1_000000i128);
 
@@ -3797,13 +3827,7 @@ fn test_list_subscriptions_one_subscription() {
     let merchant = Address::generate(&env);
     let balance = 10_000_000i128;
 
-    let id = client.create_subscription(
-        &subscriber,
-        &merchant,
-        &balance,
-        &INTERVAL,
-        &false,
-    );
+    let id = client.create_subscription(&subscriber, &merchant, &balance, &INTERVAL, &false);
 
     let page = client.list_subscriptions_by_subscriber(&subscriber, &0u32, &10u32);
 
