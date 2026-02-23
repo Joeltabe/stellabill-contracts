@@ -42,6 +42,7 @@ fn idem_key(subscription_id: u32) -> (Symbol, u32) {
 pub fn charge_one(
     env: &Env,
     subscription_id: u32,
+    now: u64,
     idempotency_key: Option<soroban_sdk::BytesN<32>>,
 ) -> Result<(), Error> {
     let mut sub = get_subscription(env, subscription_id)?;
@@ -50,7 +51,6 @@ pub fn charge_one(
         return Err(Error::NotActive);
     }
 
-    let now = env.ledger().timestamp();
     let period_index = now / sub.interval_seconds;
 
     // Idempotent return: same idempotency key already processed for this subscription
@@ -77,6 +77,7 @@ pub fn charge_one(
         }
     }
 
+
     let next_allowed = sub
         .last_payment_timestamp
         .checked_add(sub.interval_seconds)
@@ -84,6 +85,8 @@ pub fn charge_one(
     if now < next_allowed {
         return Err(Error::IntervalNotElapsed);
     }
+
+    let storage = env.storage().instance();
 
     if sub.prepaid_balance < sub.amount {
         let grace_duration = crate::admin::get_grace_period(env).unwrap_or(0);
@@ -95,13 +98,13 @@ pub fn charge_one(
             if sub.status != SubscriptionStatus::GracePeriod {
                 validate_status_transition(&sub.status, &SubscriptionStatus::GracePeriod)?;
                 sub.status = SubscriptionStatus::GracePeriod;
-                env.storage().instance().set(&subscription_id, &sub);
+                storage.set(&subscription_id, &sub);
             }
             return Err(Error::InsufficientBalance);
         } else {
             validate_status_transition(&sub.status, &SubscriptionStatus::InsufficientBalance)?;
             sub.status = SubscriptionStatus::InsufficientBalance;
-            env.storage().instance().set(&subscription_id, &sub);
+            storage.set(&subscription_id, &sub);
             return Err(Error::InsufficientBalance);
         }
     }
@@ -111,20 +114,17 @@ pub fn charge_one(
         .checked_sub(sub.amount)
         .ok_or(Error::Overflow)?;
     sub.last_payment_timestamp = now;
-
     if sub.status == SubscriptionStatus::GracePeriod {
         validate_status_transition(&sub.status, &SubscriptionStatus::Active)?;
         sub.status = SubscriptionStatus::Active;
     }
 
-    env.storage().instance().set(&subscription_id, &sub);
+    storage.set(&subscription_id, &sub);
 
     // Record charged period and optional idempotency key (bounded storage)
-    env.storage()
-        .instance()
-        .set(&charged_period_key(subscription_id), &period_index);
+    storage.set(&charged_period_key(subscription_id), &period_index);
     if let Some(k) = idempotency_key {
-        env.storage().instance().set(&idem_key(subscription_id), &k);
+        storage.set(&idem_key(subscription_id), &k);
     }
 
     env.events().publish(
@@ -135,6 +135,7 @@ pub fn charge_one(
             amount: sub.amount,
         },
     );
+
 
     Ok(())
 }
