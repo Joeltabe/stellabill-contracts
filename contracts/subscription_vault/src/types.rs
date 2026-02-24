@@ -19,52 +19,56 @@ pub enum DataKey {
 pub enum Error {
     // --- Auth Errors (401-403) ---
     /// Caller does not have the required authorization or is not the admin.
+    /// Typically occurs when a required signature is missing.
     Unauthorized = 401,
     /// Caller is authorized but does not have permission for this specific action.
+    /// Occurs when a non-admin attempts to perform an admin-only operation.
     Forbidden = 403,
 
     // --- Not Found (404) ---
-    /// The requested resource (e.g. subscription) was not found.
+    /// The requested resource (e.g. subscription) was not found in storage.
     NotFound = 404,
 
-    // --- Invalid Input (400, 405-409) ---
+    // --- Invalid Input (400, 405-408) ---
     /// The requested state transition is not allowed by the state machine.
+    /// E.g., attempting to resume a 'Cancelled' subscription.
     InvalidStatusTransition = 400,
-    /// The top-up amount is below the minimum required threshold.
+    /// The top-up amount is below the minimum required threshold configured by the admin.
     BelowMinimumTopup = 402,
     /// The provided amount is zero or negative.
     InvalidAmount = 405,
-    /// Recovery amount is zero or negative.
+    /// Recovery amount is zero or negative (used in admin fund recovery).
     InvalidRecoveryAmount = 406,
-    /// Usage-based charge attempted on a subscription with usage disabled.
+    /// Usage-based charge attempted on a subscription where usage billing is disabled.
     UsageNotEnabled = 407,
-    /// Invalid parameters provided to the function.
+    /// Invalid parameters provided to the function (e.g., a pagination limit of 0).
     InvalidInput = 408,
 
     // --- Insufficient Funds (10xx) ---
-    /// Subscription failed due to insufficient prepaid balance in the vault.
+    /// Subscription failed due to insufficient prepaid balance in the vault for a recurring charge.
+    /// This causes the subscription to transition to the 'InsufficientBalance' state.
     InsufficientBalance = 1001,
-    /// Usage-based charge exceeds the available prepaid balance.
+    /// Usage-based charge exceeds the current available prepaid balance.
     InsufficientPrepaidBalance = 1002,
 
     // --- Timing & Lifecycle Errors (11xx) ---
-    /// Charge attempted before the required interval has elapsed.
+    /// Charge attempted before the 'interval_seconds' has elapsed since the last payment.
     IntervalNotElapsed = 1101,
-    /// Charge already processed for this billing period (replay protection).
+    /// Charge already processed for the current billing period (replay protection).
     Replay = 1102,
-    /// Subscription is not in the 'Active' state.
+    /// Subscription is not in the 'Active' state (e.g. it is Paused or Cancelled).
     NotActive = 1103,
 
     // --- Algebra & Overflow (12xx) ---
-    /// Arithmetic overflow in computation.
+    /// Arithmetic overflow in computation (e.g. total amount calculation).
     Overflow = 1201,
-    /// Arithmetic underflow (e.g. balance would go negative).
+    /// Arithmetic underflow (e.g. subtracting an amount greater than the balance).
     Underflow = 1202,
 
     // --- Configuration & System (13xx) ---
-    /// Contract is already initialized.
+    /// Contract is already initialized. The 'init' function can only be called once.
     AlreadyInitialized = 1301,
-    /// Contract has not been initialized.
+    /// Contract has not been initialized. Most operations require 'init' to be called first.
     NotInitialized = 1302,
 }
 
