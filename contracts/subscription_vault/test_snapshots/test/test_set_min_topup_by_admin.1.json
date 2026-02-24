@@ -69,7 +69,11 @@
                     "storage": [
                       {
                         "key": {
-                          "symbol": "admin"
+                          "vec": [
+                            {
+                              "symbol": "Admin"
+                            }
+                          ]
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -77,7 +81,11 @@
                       },
                       {
                         "key": {
-                          "symbol": "min_topup"
+                          "vec": [
+                            {
+                              "symbol": "MinTopup"
+                            }
+                          ]
                         },
                         "val": {
                           "i128": {
@@ -88,7 +96,23 @@
                       },
                       {
                         "key": {
-                          "symbol": "token"
+                          "vec": [
+                            {
+                              "symbol": "SchemaVersion"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u32": 1
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "Token"
+                            }
+                          ]
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
