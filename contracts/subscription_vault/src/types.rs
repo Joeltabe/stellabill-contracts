@@ -5,12 +5,37 @@
 
 use soroban_sdk::{contracterror, contracttype, Address};
 
-/// Storage keys for secondary indices.
+/// Increment this constant whenever the on-chain storage schema changes.
+///
+/// ⚠️ Upgrade-sensitive: written to [`DataKey::SchemaVersion`] during `init()`.
+/// Migration logic must read this value and branch on it before touching storage.
+pub const STORAGE_VERSION: u32 = 1;
+
+/// Canonical storage key enum for all contract state.
+///
+/// ⚠️ Upgrade-sensitive: discriminant order is fixed. Never remove or reorder
+/// variants — only append new ones. The integer comments are authoritative.
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
-    /// Maps a merchant address to its list of subscription IDs.
+    /// Merchant → subscription ID list index. Discriminant 0. ⚠️ Must stay at 0.
     MerchantSubs(Address),
+    /// USDC token contract address. Discriminant 1.
+    Token,
+    /// Authorized admin address. Discriminant 2.
+    Admin,
+    /// Minimum deposit threshold. Discriminant 3.
+    MinTopup,
+    /// Auto-incrementing subscription ID counter. Discriminant 4.
+    NextId,
+    /// On-chain storage schema version. Discriminant 5.
+    SchemaVersion,
+    /// Subscription record keyed by its ID. Discriminant 6.
+    Sub(u32),
+    /// Last charged billing-period index for replay protection. Discriminant 7.
+    ChargedPeriod(u32),
+    /// Idempotency key stored per subscription. Discriminant 8.
+    IdemKey(u32),
 }
 
 #[contracterror]
@@ -107,19 +132,30 @@ pub enum SubscriptionStatus {
 
 /// Stores subscription details and current state.
 ///
+/// ⚠️ Upgrade-sensitive: field order and types are serialised as XDR by Soroban.
+/// Adding fields requires a migration; removing or retyping fields is always
+/// a breaking change.  New optional fields must default gracefully on old data.
+///
 /// The `status` field is managed by the state machine. Use the provided
 /// transition helpers to modify status, never set it directly.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct Subscription {
+    /// Subscriber's wallet address. ⚠️ Upgrade-sensitive: position 0.
     pub subscriber: Address,
+    /// Merchant receiving payments. ⚠️ Upgrade-sensitive: position 1.
     pub merchant: Address,
+    /// Payment amount per billing interval (in token's smallest unit). ⚠️ Upgrade-sensitive: position 2.
     pub amount: i128,
+    /// Billing interval duration in seconds. ⚠️ Upgrade-sensitive: position 3.
     pub interval_seconds: u64,
+    /// Ledger timestamp of the last successful charge. ⚠️ Upgrade-sensitive: position 4.
     pub last_payment_timestamp: u64,
-    /// Current lifecycle state. Modified only through state machine transitions.
+    /// Current lifecycle state — modified only through state-machine transitions. ⚠️ Upgrade-sensitive: position 5.
     pub status: SubscriptionStatus,
+    /// Deposited funds available for future charges. ⚠️ Upgrade-sensitive: position 6.
     pub prepaid_balance: i128,
+    /// Whether usage-based billing is enabled for this subscription. ⚠️ Upgrade-sensitive: position 7.
     pub usage_enabled: bool,
 }
 
