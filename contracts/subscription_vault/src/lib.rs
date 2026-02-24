@@ -278,11 +278,76 @@ impl SubscriptionVault {
         crate::queries::list_subscriptions_by_subscriber(&env, subscriber, start_from_id, limit)
     }
 
-    fn _next_id(env: &Env) -> u32 {
-        let key = soroban_sdk::Symbol::new(env, "next_id");
-        let id: u32 = env.storage().instance().get(&key).unwrap_or(0);
-        env.storage().instance().set(&key, &(id + 1));
-        id
+    /// Return the on-chain storage schema version.
+    pub fn get_storage_version(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::SchemaVersion)
+            .unwrap_or(0)
+    }
+
+    /// Migrate storage layout from a previous schema version to the current one.
+    ///
+    /// Currently handles the v0 → v1 transition, which re-keys all subscriptions
+    /// from bare `u32` keys to typed `DataKey::Sub(u32)` keys.  The function is
+    /// idempotent: subscriptions already stored under `DataKey::Sub` are not
+    /// touched.
+    ///
+    /// ⚠️ Admin-only. Must be called once after deploying upgraded WASM that
+    /// introduces `DataKey`-based storage (`STORAGE_VERSION = 1`).
+    pub fn admin_migrate(env: Env, admin: Address, from_version: u32) -> Result<(), Error> {
+        admin.require_auth();
+
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotFound)?;
+        if admin != stored_admin {
+            return Err(Error::Unauthorized);
+        }
+
+        if from_version == 0 {
+            // v0 → v1: subscriptions were keyed by bare u32; re-key them under DataKey::Sub.
+            let next_id: u32 = env
+                .storage()
+                .instance()
+                .get(&DataKey::NextId)
+                .unwrap_or_else(|| {
+                    // v0 stored next_id under a Symbol key
+                    let old_key = soroban_sdk::Symbol::new(&env, "next_id");
+                    let n: u32 = env.storage().instance().get(&old_key).unwrap_or(0);
+                    // Migrate the counter key itself
+                    if n > 0 {
+                        env.storage().instance().set(&DataKey::NextId, &n);
+                    }
+                    n
+                });
+
+            for id in 0..next_id {
+                if env
+                    .storage()
+                    .instance()
+                    .get::<DataKey, crate::types::Subscription>(&DataKey::Sub(id))
+                    .is_some()
+                {
+                    continue; // Already migrated
+                }
+                if let Some(sub) = env
+                    .storage()
+                    .instance()
+                    .get::<u32, crate::types::Subscription>(&id)
+                {
+                    env.storage().instance().set(&DataKey::Sub(id), &sub);
+                }
+            }
+
+            env.storage()
+                .instance()
+                .set(&DataKey::SchemaVersion, &STORAGE_VERSION);
+        }
+
+        Ok(())
     }
 }
 
