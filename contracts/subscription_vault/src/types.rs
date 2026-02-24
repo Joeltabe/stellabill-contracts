@@ -27,6 +27,8 @@ pub enum Error {
     BelowMinimumTopup = 402,
     /// Arithmetic overflow in computation (e.g. amount * intervals).
     Overflow = 403,
+    /// Arithmetic underflow (e.g. negative amount or balance would go negative).
+    Underflow = 1010,
     /// Charge failed due to insufficient prepaid balance.
     InsufficientBalance = 1003,
     /// Usage-based charge attempted on a subscription with `usage_enabled = false`.
@@ -35,7 +37,6 @@ pub enum Error {
     InsufficientPrepaidBalance = 1005,
     /// The provided amount is zero or negative.
     InvalidAmount = 1006,
-    /// Charge already processed for this billing period.
     /// Charge already processed for this billing period.
     Replay = 1007,
     /// Invalid amount.
@@ -55,6 +56,7 @@ impl Error {
             Error::InvalidStatusTransition => 400,
             Error::BelowMinimumTopup => 402,
             Error::Overflow => 403,
+            Error::Underflow => 1010,
             Error::InsufficientBalance => 1003,
             Error::UsageNotEnabled => 1004,
             Error::InsufficientPrepaidBalance => 1005,
@@ -83,7 +85,7 @@ pub struct BatchChargeResult {
 /// The subscription status follows a defined state machine with specific allowed transitions:
 ///
 /// - **Active**: Subscription is active and charges can be processed.
-///   - Can transition to: `Paused`, `Cancelled`, `InsufficientBalance`
+///   - Can transition to: `Paused`, `Cancelled`, `InsufficientBalance`, `GracePeriod`
 ///
 /// - **Paused**: Subscription is temporarily suspended, no charges are processed.
 ///   - Can transition to: `Active`, `Cancelled`
@@ -93,6 +95,9 @@ pub struct BatchChargeResult {
 ///
 /// - **InsufficientBalance**: Subscription failed due to insufficient funds.
 ///   - Can transition to: `Active` (after deposit), `Cancelled`
+///
+/// - **GracePeriod**: Subscription is in grace period after a missed charge.
+///   - Can transition to: `Active` (after deposit), `InsufficientBalance`, `Cancelled`
 ///
 /// Invalid transitions (e.g., `Cancelled` -> `Active`) are rejected with
 /// [`Error::InvalidStatusTransition`].
