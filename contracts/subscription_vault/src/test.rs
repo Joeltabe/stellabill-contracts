@@ -2592,3 +2592,348 @@ fn test_get_admin_before_and_after_rotation() {
     client.rotate_admin(&new_admin, &another_admin);
     assert_eq!(client.get_admin(), another_admin);
 }
+// =============================================================================
+// View Function Tests: list_subscriptions_by_subscriber
+// =============================================================================
+
+#[test]
+fn test_list_subscriptions_zero_subscriptions() {
+    // Test querying a subscriber with no subscriptions
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+    let page = client.list_subscriptions_by_subscriber(&subscriber, &0u32, &10u32);
+
+    assert_eq!(page.subscription_ids.len(), 0);
+    assert!(!page.has_next);
+}
+
+#[test]
+fn test_list_subscriptions_one_subscription() {
+    // Test querying a subscriber with exactly one subscription
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+    let merchant = Address::generate(&env);
+
+    let id = client.create_subscription(
+        &subscriber,
+        &merchant,
+        &10_000_000i128,
+        &(30 * 24 * 60 * 60),
+        &false,
+    );
+
+    let page = client.list_subscriptions_by_subscriber(&subscriber, &0u32, &10u32);
+
+    assert_eq!(page.subscription_ids.len(), 1);
+    assert_eq!(page.subscription_ids.get(0).unwrap(), id);
+    assert!(!page.has_next);
+}
+
+#[test]
+fn test_list_subscriptions_many_subscriptions() {
+    // Test querying a subscriber with multiple subscriptions
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+    let merchant = Address::generate(&env);
+
+    let mut ids = soroban_sdk::Vec::new(&env);
+    for _ in 0..5 {
+        let id = client.create_subscription(
+            &subscriber,
+            &merchant,
+            &10_000_000i128,
+            &(30 * 24 * 60 * 60),
+            &false,
+        );
+        ids.push_back(id);
+    }
+
+    let page = client.list_subscriptions_by_subscriber(&subscriber, &0u32, &10u32);
+
+    assert_eq!(page.subscription_ids.len(), 5);
+    assert!(!page.has_next);
+
+    // Verify subscriptions are returned in order by ID
+    for i in 0..5 {
+        assert_eq!(
+            page.subscription_ids.get(i).unwrap(),
+            ids.get(i as u32).unwrap()
+        );
+    }
+}
+
+#[test]
+fn test_list_subscriptions_pagination_first_page() {
+    // Test first page of pagination
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+    let merchant = Address::generate(&env);
+
+    let mut ids = soroban_sdk::Vec::new(&env);
+    for _ in 0..15 {
+        let id = client.create_subscription(
+            &subscriber,
+            &merchant,
+            &10_000_000i128,
+            &(30 * 24 * 60 * 60),
+            &false,
+        );
+        ids.push_back(id);
+    }
+
+    let page1 = client.list_subscriptions_by_subscriber(&subscriber, &0u32, &10u32);
+
+    assert_eq!(page1.subscription_ids.len(), 10);
+    assert!(page1.has_next);
+
+    // Verify first page contains the first 10 subscriptions
+    for i in 0..10 {
+        assert_eq!(
+            page1.subscription_ids.get(i).unwrap(),
+            ids.get(i as u32).unwrap()
+        );
+    }
+}
+
+#[test]
+fn test_list_subscriptions_pagination_second_page() {
+    // Test second page of pagination
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+    let merchant = Address::generate(&env);
+
+    let mut ids = soroban_sdk::Vec::new(&env);
+    for _ in 0..15 {
+        let id = client.create_subscription(
+            &subscriber,
+            &merchant,
+            &10_000_000i128,
+            &(30 * 24 * 60 * 60),
+            &false,
+        );
+        ids.push_back(id);
+    }
+
+    // Get first page
+    let page1 = client.list_subscriptions_by_subscriber(&subscriber, &0u32, &10u32);
+    assert_eq!(page1.subscription_ids.len(), 10);
+    let last_id_page1 = page1.subscription_ids.get(9).unwrap();
+
+    // Get second page using start_from_id = last_id + 1
+    let next_start = last_id_page1 + 1;
+    let page2 = client.list_subscriptions_by_subscriber(&subscriber, &next_start, &10u32);
+
+    assert_eq!(page2.subscription_ids.len(), 5);
+    assert!(!page2.has_next);
+
+    // Verify second page contains the remaining 5 subscriptions
+    for i in 0..5 {
+        assert_eq!(
+            page2.subscription_ids.get(i).unwrap(),
+            ids.get((10 + i) as u32).unwrap()
+        );
+    }
+}
+
+#[test]
+fn test_list_subscriptions_filters_by_subscriber() {
+    // Test that only subscriptions for the specific subscriber are returned
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber1 = Address::generate(&env);
+    let subscriber2 = Address::generate(&env);
+    let merchant = Address::generate(&env);
+
+    // Create 3 subscriptions for subscriber1
+    for _ in 0..3 {
+        client.create_subscription(
+            &subscriber1,
+            &merchant,
+            &10_000_000i128,
+            &(30 * 24 * 60 * 60),
+            &false,
+        );
+    }
+
+    // Create 2 subscriptions for subscriber2
+    for _ in 0..2 {
+        client.create_subscription(
+            &subscriber2,
+            &merchant,
+            &10_000_000i128,
+            &(30 * 24 * 60 * 60),
+            &false,
+        );
+    }
+
+    // Query subscriber1
+    let page1 = client.list_subscriptions_by_subscriber(&subscriber1, &0u32, &10u32);
+    assert_eq!(page1.subscription_ids.len(), 3);
+
+    // Query subscriber2
+    let page2 = client.list_subscriptions_by_subscriber(&subscriber2, &0u32, &10u32);
+    assert_eq!(page2.subscription_ids.len(), 2);
+}
+
+#[test]
+fn test_list_subscriptions_small_limit() {
+    // Test pagination with very small limit (limit=1)
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+    let merchant = Address::generate(&env);
+
+    let mut ids = soroban_sdk::Vec::new(&env);
+    for _ in 0..5 {
+        let id = client.create_subscription(
+            &subscriber,
+            &merchant,
+            &10_000_000i128,
+            &(30 * 24 * 60 * 60),
+            &false,
+        );
+        ids.push_back(id);
+    }
+
+    // Get all pages with limit=1
+    let mut all_ids = soroban_sdk::Vec::new(&env);
+    let mut start_id = 0u32;
+    let mut has_next = true;
+
+    while has_next {
+        let page = client.list_subscriptions_by_subscriber(&subscriber, &start_id, &1u32);
+        if page.subscription_ids.len() > 0 {
+            let current_id = page.subscription_ids.get(0).unwrap();
+            all_ids.push_back(current_id);
+            // Advance start cursor past the current ID
+            start_id = current_id + 1;
+            has_next = page.has_next;
+        } else {
+            has_next = false;
+        }
+    }
+
+    assert_eq!(all_ids.len(), 5);
+    for i in 0..5 {
+        assert_eq!(all_ids.get(i as u32).unwrap(), ids.get(i as u32).unwrap());
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_list_subscriptions_limit_zero_returns_error() {
+    // Test that limit=0 returns an error
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+
+    client.list_subscriptions_by_subscriber(&subscriber, &0u32, &0u32);
+}
+
+#[test]
+fn test_list_subscriptions_respects_start_from_id() {
+    // Test that start_from_id correctly includes only subscriptions from that ID onward
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+    let merchant = Address::generate(&env);
+
+    let mut ids = soroban_sdk::Vec::new(&env);
+    for _ in 0..10 {
+        let id = client.create_subscription(
+            &subscriber,
+            &merchant,
+            &10_000_000i128,
+            &(30 * 24 * 60 * 60),
+            &false,
+        );
+        ids.push_back(id);
+    }
+
+    // Get subscriptions starting from the 6th one (index 5, IDs 5-9)
+    let start_id = ids.get(5u32).unwrap();
+    let page = client.list_subscriptions_by_subscriber(&subscriber, &start_id, &10u32);
+
+    // Should contain subscriptions 5-9 (5 subscriptions, inclusive)
+    assert_eq!(page.subscription_ids.len(), 5);
+
+    // Verify these are subscriptions at indices 5-9
+    for i in 0..5 {
+        assert_eq!(
+            page.subscription_ids.get(i).unwrap(),
+            ids.get((5 + i) as u32).unwrap()
+        );
+    }
+}
+
+#[test]
+fn test_list_subscriptions_stable_ordering() {
+    // Test that subscriptions are always returned in the same order (by ID, ascending)
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+    let merchant = Address::generate(&env);
+
+    for _ in 0..7 {
+        client.create_subscription(
+            &subscriber,
+            &merchant,
+            &10_000_000i128,
+            &(30 * 24 * 60 * 60),
+            &false,
+        );
+    }
+
+    // Query multiple times and verify consistent ordering
+    let page1 = client.list_subscriptions_by_subscriber(&subscriber, &0u32, &10u32);
+    let page2 = client.list_subscriptions_by_subscriber(&subscriber, &0u32, &10u32);
+
+    assert_eq!(page1.subscription_ids.len(), page2.subscription_ids.len());
+    for i in 0..page1.subscription_ids.len() {
+        assert_eq!(
+            page1.subscription_ids.get(i).unwrap(),
+            page2.subscription_ids.get(i).unwrap()
+        );
+    }
+}
+
+#[test]
+fn test_list_subscriptions_multiple_merchants() {
+    // Test pagination with subscriptions to multiple merchants
+    let (env, client, _, _) = setup_test_env();
+
+    let subscriber = Address::generate(&env);
+    let merchant1 = Address::generate(&env);
+    let merchant2 = Address::generate(&env);
+
+    let mut ids = soroban_sdk::Vec::new(&env);
+    // Create subscriptions to different merchants
+    for i in 0..10 {
+        let merchant = if i % 2 == 0 { &merchant1 } else { &merchant2 };
+        let id = client.create_subscription(
+            &subscriber,
+            merchant,
+            &10_000_000i128,
+            &(30 * 24 * 60 * 60),
+            &false,
+        );
+        ids.push_back(id);
+    }
+
+    let page = client.list_subscriptions_by_subscriber(&subscriber, &0u32, &10u32);
+
+    assert_eq!(page.subscription_ids.len(), 10);
+    // All subscriptions should be from this subscriber regardless of merchant
+    for i in 0..10 {
+        assert_eq!(
+            page.subscription_ids.get(i).unwrap(),
+            ids.get(i as u32).unwrap()
+        );
+    }
+}
+
