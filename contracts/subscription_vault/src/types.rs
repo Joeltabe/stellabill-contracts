@@ -110,17 +110,27 @@ pub enum SubscriptionStatus {
 
 /// Stores subscription details and current state.
 ///
-/// The `status` field is managed by the state machine. Use the provided
-/// transition helpers to modify status, never set it directly.
+/// Serialization: This named-field struct is encoded on-ledger as a ScMap keyed
+/// by the field names. Renaming fields, reordering is inconsequential to map
+/// semantics but still alters the encoded bytes and will break golden vectors.
+/// Changing any field type or the representation of [`SubscriptionStatus`] is
+/// a storage-breaking change. To extend, prefer adding new optional fields at
+/// the end with conservative defaults; doing so still changes bytes and must
+/// be treated as a versioned change.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct Subscription {
+    /// Identity of the subscriber. Renaming or changing this field breaks the
+    /// encoded form and must be treated as a breaking change.
     pub subscriber: Address,
+    /// Identity of the merchant. Renaming or changing this field breaks the
+    /// encoded form and must be treated as a breaking change.
     pub merchant: Address,
     pub amount: i128,
     pub interval_seconds: u64,
     pub last_payment_timestamp: u64,
     /// Current lifecycle state. Modified only through state machine transitions.
+    /// Changing the enum or this field name affects the encoded form.
     pub status: SubscriptionStatus,
     pub prepaid_balance: i128,
     pub usage_enabled: bool,
