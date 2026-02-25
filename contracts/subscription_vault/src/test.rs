@@ -588,7 +588,7 @@ fn test_subscription_struct_status_field() {
 // Serialization Stability Tests
 // =============================================================================
 
-fn hex_of(env: &Env, bytes: &soroban_sdk::Bytes) -> String {
+fn hex_of(_env: &Env, bytes: &soroban_sdk::Bytes) -> String {
     let mut s = String::new();
     for i in 0..bytes.len() {
         let b = bytes.get(i).unwrap();
@@ -693,7 +693,7 @@ fn test_future_optional_fields_would_change_encoding() {
 
     let env = Env::default();
     let base = make_subscription(&env, SubscriptionStatus::Active, false);
-    let v1_xdr = base.to_xdr(&env);
+    let v1_xdr = base.clone().to_xdr(&env);
 
     let v2 = SubscriptionV2 {
         subscriber: base.subscriber.clone(),
