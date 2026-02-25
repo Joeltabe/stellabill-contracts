@@ -72,7 +72,9 @@ pub fn do_deposit_funds(
 
     token_client.transfer(&subscriber, &env.current_contract_address(), &amount);
 
-    env.storage().instance().set(&DataKey::Sub(subscription_id), &sub);
+    env.storage()
+        .instance()
+        .set(&DataKey::Sub(subscription_id), &sub);
     env.events().publish(
         (Symbol::new(env, "deposited"), subscription_id),
         (subscriber, amount, sub.prepaid_balance),
@@ -96,7 +98,9 @@ pub fn do_cancel_subscription(
     validate_status_transition(&sub.status, &SubscriptionStatus::Cancelled)?;
     sub.status = SubscriptionStatus::Cancelled;
 
-    env.storage().instance().set(&DataKey::Sub(subscription_id), &sub);
+    env.storage()
+        .instance()
+        .set(&DataKey::Sub(subscription_id), &sub);
     Ok(())
 }
 
@@ -111,7 +115,9 @@ pub fn do_pause_subscription(
     validate_status_transition(&sub.status, &SubscriptionStatus::Paused)?;
     sub.status = SubscriptionStatus::Paused;
 
-    env.storage().instance().set(&DataKey::Sub(subscription_id), &sub);
+    env.storage()
+        .instance()
+        .set(&DataKey::Sub(subscription_id), &sub);
     Ok(())
 }
 
@@ -126,7 +132,9 @@ pub fn do_resume_subscription(
     validate_status_transition(&sub.status, &SubscriptionStatus::Active)?;
     sub.status = SubscriptionStatus::Active;
 
-    env.storage().instance().set(&DataKey::Sub(subscription_id), &sub);
+    env.storage()
+        .instance()
+        .set(&DataKey::Sub(subscription_id), &sub);
     Ok(())
 }
 
@@ -150,7 +158,9 @@ pub fn do_withdraw_subscriber_funds(
     let amount_to_refund = sub.prepaid_balance;
     if amount_to_refund > 0 {
         sub.prepaid_balance = 0;
-        env.storage().instance().set(&DataKey::Sub(subscription_id), &sub);
+        env.storage()
+            .instance()
+            .set(&DataKey::Sub(subscription_id), &sub);
 
         let token_addr: Address = env
             .storage()

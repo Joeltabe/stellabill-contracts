@@ -75,7 +75,9 @@ pub fn charge_one(
     if sub.prepaid_balance < sub.amount {
         validate_status_transition(&sub.status, &SubscriptionStatus::InsufficientBalance)?;
         sub.status = SubscriptionStatus::InsufficientBalance;
-        env.storage().instance().set(&DataKey::Sub(subscription_id), &sub);
+        env.storage()
+            .instance()
+            .set(&DataKey::Sub(subscription_id), &sub);
         return Err(Error::InsufficientBalance);
     }
 
@@ -84,13 +86,17 @@ pub fn charge_one(
         .checked_sub(sub.amount)
         .ok_or(Error::Overflow)?;
     sub.last_payment_timestamp = now;
-    env.storage().instance().set(&DataKey::Sub(subscription_id), &sub);
+    env.storage()
+        .instance()
+        .set(&DataKey::Sub(subscription_id), &sub);
 
     env.storage()
         .instance()
         .set(&DataKey::ChargedPeriod(subscription_id), &period_index);
     if let Some(k) = idempotency_key {
-        env.storage().instance().set(&DataKey::IdemKey(subscription_id), &k);
+        env.storage()
+            .instance()
+            .set(&DataKey::IdemKey(subscription_id), &k);
     }
 
     env.events().publish(
@@ -146,6 +152,8 @@ pub fn charge_usage_one(env: &Env, subscription_id: u32, usage_amount: i128) -> 
         sub.status = SubscriptionStatus::InsufficientBalance;
     }
 
-    env.storage().instance().set(&DataKey::Sub(subscription_id), &sub);
+    env.storage()
+        .instance()
+        .set(&DataKey::Sub(subscription_id), &sub);
     Ok(())
 }

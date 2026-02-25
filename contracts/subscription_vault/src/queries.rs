@@ -69,7 +69,11 @@ pub fn get_subscriptions_by_merchant(
     let mut i = start;
     while i < end {
         let sub_id = ids.get(i).unwrap();
-        if let Some(sub) = env.storage().instance().get::<DataKey, Subscription>(&DataKey::Sub(sub_id)) {
+        if let Some(sub) = env
+            .storage()
+            .instance()
+            .get::<DataKey, Subscription>(&DataKey::Sub(sub_id))
+        {
             result.push_back(sub);
         }
         i += 1;
@@ -172,7 +176,11 @@ pub fn list_subscriptions_by_subscriber(
     let mut last_found_id = start_from_id;
 
     for id in start_from_id..next_id {
-        match env.storage().instance().get::<DataKey, Subscription>(&DataKey::Sub(id)) {
+        match env
+            .storage()
+            .instance()
+            .get::<DataKey, Subscription>(&DataKey::Sub(id))
+        {
             Some(sub) => {
                 if sub.subscriber == subscriber {
                     subscription_ids.push_back(id);
@@ -190,7 +198,11 @@ pub fn list_subscriptions_by_subscriber(
     let has_next = if count >= limit {
         let mut found_next = false;
         for id in (last_found_id + 1)..next_id {
-            if let Some(sub) = env.storage().instance().get::<DataKey, Subscription>(&DataKey::Sub(id)) {
+            if let Some(sub) = env
+                .storage()
+                .instance()
+                .get::<DataKey, Subscription>(&DataKey::Sub(id))
+            {
                 if sub.subscriber == subscriber {
                     found_next = true;
                     break;

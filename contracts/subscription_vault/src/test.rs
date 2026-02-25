@@ -1660,7 +1660,9 @@ fn setup_batch_env(env: &Env) -> (SubscriptionVaultClient<'static>, Address, u32
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(env, &contract_id);
     let admin = Address::generate(env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(env, &token);
     let subscriber = Address::generate(env);
     let merchant = Address::generate(env);
@@ -1697,7 +1699,9 @@ fn test_batch_charge_small_batch_5_subscriptions() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -1731,7 +1735,9 @@ fn test_batch_charge_medium_batch_20_subscriptions() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -1764,7 +1770,9 @@ fn test_batch_charge_large_batch_50_subscriptions() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -1801,7 +1809,9 @@ fn test_batch_charge_mixed_success_and_insufficient_balance() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -1848,7 +1858,9 @@ fn test_batch_charge_mixed_interval_not_elapsed() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -1889,7 +1901,9 @@ fn test_batch_charge_mixed_paused_and_active() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -1929,7 +1943,9 @@ fn test_batch_charge_mixed_cancelled_and_active() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -1995,7 +2011,9 @@ fn test_batch_charge_all_different_error_types() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -2066,7 +2084,9 @@ fn test_batch_charge_successful_charges_update_state() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -2103,7 +2123,9 @@ fn test_batch_charge_failed_charges_leave_state_unchanged() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -2142,7 +2164,9 @@ fn test_batch_charge_partial_batch_correct_final_state() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -2196,7 +2220,9 @@ fn test_batch_charge_multiple_rounds_state_consistency() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -2236,7 +2262,9 @@ fn test_batch_charge_requires_admin_auth() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -2302,7 +2330,9 @@ fn test_batch_charge_exhausts_balance_exactly() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -2334,7 +2364,9 @@ fn test_batch_charge_balance_off_by_one_insufficient() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -2367,7 +2399,9 @@ fn test_batch_charge_result_indices_match_input_order() {
     let contract_id = env.register(SubscriptionVault, ());
     let client = SubscriptionVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     client.init(&token, &admin, &1_000000i128);
 
@@ -3883,7 +3917,13 @@ fn test_many_subscriptions_no_key_collision() {
     let merchant = Address::generate(&env);
 
     for i in 0u32..20 {
-        let id = client.create_subscription(&subscriber, &merchant, &(1_000_000i128 + i as i128), &INTERVAL, &false);
+        let id = client.create_subscription(
+            &subscriber,
+            &merchant,
+            &(1_000_000i128 + i as i128),
+            &INTERVAL,
+            &false,
+        );
         assert_eq!(id, i);
     }
 
@@ -3911,14 +3951,13 @@ fn test_next_id_overflow_protection() {
 
     // Force next_id to u32::MAX
     env.as_contract(&client.address, || {
-        env.storage()
-            .instance()
-            .set(&DataKey::NextId, &u32::MAX);
+        env.storage().instance().set(&DataKey::NextId, &u32::MAX);
     });
 
     let subscriber = Address::generate(&env);
     let merchant = Address::generate(&env);
-    let result = client.try_create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
+    let result =
+        client.try_create_subscription(&subscriber, &merchant, &1000i128, &INTERVAL, &false);
     assert!(result.is_err());
 }
 
@@ -3936,7 +3975,9 @@ fn test_admin_migrate_v0_to_v1_simulation() {
     env.as_contract(&contract_id, || {
         env.storage().instance().set(&DataKey::Token, &token);
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::MinTopup, &1_000_000i128);
+        env.storage()
+            .instance()
+            .set(&DataKey::MinTopup, &1_000_000i128);
         // v0 stored next_id under a Symbol key
         let old_next_id_key = soroban_sdk::Symbol::new(&env, "next_id");
         env.storage().instance().set(&old_next_id_key, &3u32);
@@ -4014,7 +4055,9 @@ fn test_admin_migrate_is_idempotent() {
     env.as_contract(&contract_id, || {
         env.storage().instance().set(&DataKey::Token, &token);
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::MinTopup, &1_000_000i128);
+        env.storage()
+            .instance()
+            .set(&DataKey::MinTopup, &1_000_000i128);
         let old_key = soroban_sdk::Symbol::new(&env, "next_id");
         env.storage().instance().set(&old_key, &1u32);
         let sub = Subscription {
@@ -4102,11 +4145,19 @@ fn test_charged_period_key_isolation() {
 
     // Seed balances
     env.as_contract(&contract_id, || {
-        let mut s0 = env.storage().instance().get::<DataKey, Subscription>(&DataKey::Sub(id0)).unwrap();
+        let mut s0 = env
+            .storage()
+            .instance()
+            .get::<DataKey, Subscription>(&DataKey::Sub(id0))
+            .unwrap();
         s0.prepaid_balance = 100_000_000i128;
         env.storage().instance().set(&DataKey::Sub(id0), &s0);
 
-        let mut s1 = env.storage().instance().get::<DataKey, Subscription>(&DataKey::Sub(id1)).unwrap();
+        let mut s1 = env
+            .storage()
+            .instance()
+            .get::<DataKey, Subscription>(&DataKey::Sub(id1))
+            .unwrap();
         s1.prepaid_balance = 100_000_000i128;
         env.storage().instance().set(&DataKey::Sub(id1), &s1);
     });

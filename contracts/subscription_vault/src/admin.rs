@@ -3,14 +3,18 @@
 //! **PRs that only change admin or batch behavior should edit this file only.**
 
 use crate::charge_core::charge_one;
-use crate::types::{BatchChargeResult, DataKey, Error, RecoveryEvent, RecoveryReason, STORAGE_VERSION};
+use crate::types::{
+    BatchChargeResult, DataKey, Error, RecoveryEvent, RecoveryReason, STORAGE_VERSION,
+};
 use soroban_sdk::{Address, Env, Symbol, Vec};
 
 pub fn do_init(env: &Env, token: Address, admin: Address, min_topup: i128) -> Result<(), Error> {
     env.storage().instance().set(&DataKey::Token, &token);
     env.storage().instance().set(&DataKey::Admin, &admin);
     env.storage().instance().set(&DataKey::MinTopup, &min_topup);
-    env.storage().instance().set(&DataKey::SchemaVersion, &STORAGE_VERSION);
+    env.storage()
+        .instance()
+        .set(&DataKey::SchemaVersion, &STORAGE_VERSION);
     env.events().publish(
         (Symbol::new(env, "initialized"),),
         (token, admin, min_topup),
