@@ -171,9 +171,62 @@ impl SubscriptionVault {
 
     // ── Charging ─────────────────────────────────────────────────────────
 
-    /// Billing engine calls this to charge one interval.
+    /// Charge a subscription for one billing interval.
     ///
-    /// Enforces strict interval timing and replay protection.
+    /// This function attempts to charge the subscriber's prepaid balance for the
+    /// recurring subscription fee. It enforces:
+    /// - The subscription must be in `Active` status
+    /// - The billing interval must have elapsed since the last charge
+    /// - The prepaid balance must be sufficient to cover the charge amount
+    ///
+    /// # Preconditions
+    ///
+    /// - The subscription must exist and be in `Active` status
+    /// - `last_payment_timestamp + interval_seconds` must be <= current ledger timestamp
+    /// - `prepaid_balance >= amount` (the subscription's recurring charge amount)
+    ///
+    /// # Behavior
+    ///
+    /// On success:
+    /// - `prepaid_balance` is reduced by `amount`
+    /// - `last_payment_timestamp` is updated to current timestamp
+    /// - A `SubscriptionChargedEvent` is emitted
+    /// - The subscription remains `Active`
+    ///
+    /// On failure (insufficient balance):
+    /// - No changes are made to the subscription's prepaid balance
+    /// - Status transitions to `InsufficientBalance`
+    /// - An `Error::InsufficientBalance` error is returned
+    ///
+    /// # Error Cases
+    ///
+    /// | Error | Condition |
+    /// |-------|-----------|
+    /// | `NotFound` | Subscription ID does not exist |
+    /// | `NotActive` | Subscription is not in `Active` status (Paused, Cancelled, or InsufficientBalance) |
+    /// | `IntervalNotElapsed` | Not enough time has passed since last charge |
+    /// | `Replay` | This billing period has already been charged |
+    /// | `InsufficientBalance` | `prepaid_balance < amount` |
+    ///
+    /// # Non-Destructive Failure Guarantee
+    ///
+    /// When a charge fails due to insufficient balance:
+    /// - The subscriber's prepaid balance is NOT deducted
+    /// - No tokens are transferred to the merchant
+    /// - The subscription metadata remains unchanged (except status)
+    /// - The failure is atomic - no partial state updates occur
+    ///
+    /// # Recovery
+    ///
+    /// If the charge fails due to insufficient balance:
+    /// 1. Subscriber calls `deposit_funds` to add more funds
+    /// 2. Subscriber calls `resume_subscription` to transition back to `Active`
+    /// 3. The next charge attempt will succeed (if balance is sufficient)
+    ///
+    /// # Gas Efficiency
+    ///
+    /// The function uses early validation to avoid unnecessary state modifications.
+    /// Balance check is performed before any state changes.
     pub fn charge_subscription(env: Env, subscription_id: u32) -> Result<(), Error> {
         charge_core::charge_one(&env, subscription_id, env.ledger().timestamp(), None)
     }
