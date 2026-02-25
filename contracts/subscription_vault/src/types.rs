@@ -28,19 +28,21 @@ pub enum Error {
     /// Arithmetic overflow in computation (e.g. amount * intervals).
     Overflow = 403,
     /// Arithmetic underflow (e.g. negative amount or balance would go negative).
-    Underflow = 1004,
+    Underflow = 1010,
     /// Charge failed due to insufficient prepaid balance.
     InsufficientBalance = 1003,
     /// Usage-based charge attempted on a subscription with `usage_enabled = false`.
-    UsageNotEnabled = 1009,
+    UsageNotEnabled = 1004,
     /// Usage-based charge amount exceeds the available prepaid balance.
-    InsufficientPrepaidBalance = 1010,
+    InsufficientPrepaidBalance = 1005,
     /// The provided amount is zero or negative.
     InvalidAmount = 1006,
     /// Charge already processed for this billing period.
     Replay = 1007,
-    /// Recovery amount is zero or negative.
+    /// Invalid amount.
     InvalidRecoveryAmount = 1008,
+    /// Already initialized.
+    AlreadyInitialized = 1009,
 }
 
 impl Error {
@@ -54,13 +56,14 @@ impl Error {
             Error::InvalidStatusTransition => 400,
             Error::BelowMinimumTopup => 402,
             Error::Overflow => 403,
-            Error::Underflow => 1004,
+            Error::Underflow => 1010,
             Error::InsufficientBalance => 1003,
-            Error::UsageNotEnabled => 1009,
-            Error::InsufficientPrepaidBalance => 1010,
+            Error::UsageNotEnabled => 1004,
+            Error::InsufficientPrepaidBalance => 1005,
             Error::InvalidAmount => 1006,
             Error::Replay => 1007,
             Error::InvalidRecoveryAmount => 1008,
+            Error::AlreadyInitialized => 1009,
         }
     }
 }
@@ -82,7 +85,7 @@ pub struct BatchChargeResult {
 /// The subscription status follows a defined state machine with specific allowed transitions:
 ///
 /// - **Active**: Subscription is active and charges can be processed.
-///   - Can transition to: `Paused`, `Cancelled`, `InsufficientBalance`
+///   - Can transition to: `Paused`, `Cancelled`, `InsufficientBalance`, `GracePeriod`
 ///
 /// - **Paused**: Subscription is temporarily suspended, no charges are processed.
 ///   - Can transition to: `Active`, `Cancelled`
@@ -92,6 +95,9 @@ pub struct BatchChargeResult {
 ///
 /// - **InsufficientBalance**: Subscription failed due to insufficient funds.
 ///   - Can transition to: `Active` (after deposit), `Cancelled`
+///
+/// - **GracePeriod**: Subscription is in grace period after a missed charge.
+///   - Can transition to: `Active` (after deposit), `InsufficientBalance`, `Cancelled`
 ///
 /// Invalid transitions (e.g., `Cancelled` -> `Active`) are rejected with
 /// [`Error::InvalidStatusTransition`].
@@ -106,6 +112,8 @@ pub enum SubscriptionStatus {
     Cancelled = 2,
     /// Subscription failed due to insufficient balance for charging.
     InsufficientBalance = 3,
+    /// Subscription failed resulting in entry into grace period before suspension.
+    GracePeriod = 4,
 }
 
 /// Stores subscription details and current state.

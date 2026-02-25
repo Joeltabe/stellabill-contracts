@@ -28,8 +28,15 @@ impl SubscriptionVault {
     // ── Admin / Config ───────────────────────────────────────────────────
 
     /// Initialize the contract: set token address, admin, and minimum top-up.
-    pub fn init(env: Env, token: Address, admin: Address, min_topup: i128) -> Result<(), Error> {
-        admin::do_init(&env, token, admin, min_topup)
+    pub fn init(
+        env: Env,
+        token: Address,
+        token_decimals: u32,
+        admin: Address,
+        min_topup: i128,
+        grace_period: u64,
+    ) -> Result<(), Error> {
+        admin::do_init(&env, token, token_decimals, admin, min_topup, grace_period)
     }
 
     /// Update the minimum top-up threshold. Only callable by admin.
@@ -82,6 +89,14 @@ impl SubscriptionVault {
         subscription_ids: Vec<u32>,
     ) -> Result<Vec<BatchChargeResult>, Error> {
         admin::do_batch_charge(&env, &subscription_ids)
+    }
+
+    pub fn set_grace_period(env: Env, admin: Address, grace_period: u64) -> Result<(), Error> {
+        admin::do_set_grace_period(&env, admin, grace_period)
+    }
+
+    pub fn get_grace_period(env: Env) -> Result<u64, Error> {
+        admin::get_grace_period(&env)
     }
 
     // ── Subscription lifecycle ───────────────────────────────────────────
@@ -160,7 +175,7 @@ impl SubscriptionVault {
     ///
     /// Enforces strict interval timing and replay protection.
     pub fn charge_subscription(env: Env, subscription_id: u32) -> Result<(), Error> {
-        charge_core::charge_one(&env, subscription_id, None)
+        charge_core::charge_one(&env, subscription_id, env.ledger().timestamp(), None)
     }
 
     /// Charge a metered usage amount against the subscription's prepaid balance.
@@ -240,6 +255,16 @@ impl SubscriptionVault {
         queries::get_merchant_subscription_count(&env, merchant)
     }
 
+    /// Merchant-initiated one-off charge.
+    pub fn charge_one_off(
+        env: Env,
+        subscription_id: u32,
+        merchant: Address,
+        amount: i128,
+    ) -> Result<(), Error> {
+        subscription::do_charge_one_off(&env, subscription_id, merchant, amount)
+    }
+
     /// List all subscription IDs for a given subscriber with pagination support.
     ///
     /// This read-only function retrieves subscription IDs owned by a subscriber in a paginated manner.
@@ -278,13 +303,6 @@ impl SubscriptionVault {
         limit: u32,
     ) -> Result<crate::queries::SubscriptionsPage, Error> {
         crate::queries::list_subscriptions_by_subscriber(&env, subscriber, start_from_id, limit)
-    }
-
-    fn _next_id(env: &Env) -> u32 {
-        let key = soroban_sdk::Symbol::new(env, "next_id");
-        let id: u32 = env.storage().instance().get(&key).unwrap_or(0);
-        env.storage().instance().set(&key, &(id + 1));
-        id
     }
 }
 
